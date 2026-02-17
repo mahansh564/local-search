@@ -4,3 +4,6 @@
 
 # LangGraph
 .langgraph_api/
+node_modules/
+.cursor/
+.sisyphus/

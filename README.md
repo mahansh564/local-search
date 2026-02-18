@@ -1,13 +1,26 @@
 # search-cli
 
-A terminal CLI search application for local notes, files, and emails with SOTA RAG (Retrieval-Augmented Generation) capabilities.
+A terminal CLI search application for local notes, files, and emails with **state-of-the-art RAG** (Retrieval-Augmented Generation) capabilities.
 
-## Features
+## SOTA RAG Features
 
-- **Multiple Search Modes**:
-  - FTS5 keyword search (fast)
-  - Vector semantic search
-  - Hybrid search with RRF ranking
+- **Hybrid Search Pipeline**:
+  - BM25 lexical search with proper IDF and document length normalization
+  - Vector semantic search with ANN (Approximate Nearest Neighbors) via sqlite-vec
+  - Reciprocal Rank Fusion (RRF) for combining results
+  - Cross-encoder reranking for improved relevance
+
+- **Real Semantic Embeddings**:
+  - Local embeddings via Xenova Transformers (MiniLM-L6-v2)
+  - No API keys required - runs entirely offline
+  - Per-chunk indexing with parent document tracking
+
+- **Metadata Filtering**:
+  - JSON path-based filters
+  - Date ranges, file types, tags, collections
+  - Combined with search for precise results
+
+## Additional Features
 
 - **Email Support**:
   - Maildir format
@@ -37,6 +50,26 @@ A terminal CLI search application for local notes, files, and emails with SOTA R
   - File watching with auto-reindex
   - Export results (JSON, CSV, Markdown)
 
+## Architecture
+
+```
+Query → Parallel Retrieval (BM25 + Vector ANN)
+           ↓
+    Reciprocal Rank Fusion (RRF)
+           ↓
+    Metadata Filtering
+           ↓
+    Cross-Encoder Reranking
+           ↓
+    Results
+```
+
+1. **BM25 Search**: Classic lexical search with term frequency and document length normalization
+2. **Vector Search**: Semantic similarity using embeddings via sqlite-vec ANN
+3. **RRF Fusion**: Combines both result sets without score normalization issues
+4. **Metadata Filters**: JSON-based filtering by date, collection, file type, tags
+5. **Reranking**: Cross-encoder (MSMARCO) scores top-k results for relevance
+
 ## Quick Start
 
 ```bash
@@ -56,10 +89,19 @@ bun run src/index.ts add apple-notes --name apple-notes --type apple-notes
 # Or specify a custom Notes database path
 bun run src/index.ts add apple-notes --name apple-notes --type apple-notes --notes-db /path/to/Notes.db
 
-# Build the index
+# Build the index (downloads models on first run ~50MB)
 bun run src/index.ts index
 
-# Search
+# Search with full RAG pipeline
+bun run src/index.ts query "your query"
+
+# Disable reranking for faster results
+bun run src/index.ts query "your query" --rerank=false
+
+# Vector-only search
+bun run src/index.ts vsearch "your query"
+
+# Keyword-only search
 bun run src/index.ts search "your query"
 ```
 
@@ -71,14 +113,30 @@ bun run src/index.ts search "your query"
 | `add <path>` | Add a collection |
 | `remove <name>` | Remove a collection |
 | `list` | List all collections |
-| `search <query>` | FTS5 keyword search |
-| `vsearch <query>` | Vector semantic search |
-| `query <query>` | Hybrid search (FTS5 + Vector) |
-| `index` | Rebuild search index |
+| `search <query>` | BM25 keyword search |
+| `vsearch <query>` | Vector semantic search (sqlite-vec ANN) |
+| `query <query>` | Full RAG pipeline (BM25 + Vector → RRF → Reranking) |
+| `index` | Rebuild search index with embeddings |
 | `status` | Show index statistics |
 | `interactive` | Interactive search mode |
 | `watch` | Watch for changes |
-| `export <query>` | Export results |
+| `export <query>` | Export results (JSON/CSV/Markdown) |
+
+### Query Options
+
+```bash
+# Basic RAG query
+bun run src/index.ts query "machine learning"
+
+# Limit results
+bun run src/index.ts query "machine learning" --limit 5
+
+# Disable reranking (faster)
+bun run src/index.ts query "machine learning" --rerank=false
+
+# Metadata filtering (JSON)
+bun run src/index.ts query "machine learning" --filter '{"operator":"and","filters":[{"field":"collection","operator":"eq","value":"notes"}]}'
+```
 
 ## Troubleshooting
 

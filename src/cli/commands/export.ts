@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import { Database } from 'bun:sqlite';
-import { HybridSearch } from '../../search/hybrid.js';
+import { RAGPipeline } from '../../search/pipeline.js';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -13,12 +13,14 @@ interface ExportOptions {
 export async function exportCommand(query: string, options: ExportOptions) {
   const dbPath = path.join(os.homedir(), '.search-cli', 'index.sqlite');
   const db = new Database(dbPath);
-  const hybridSearch = new HybridSearch(db);
+  const pipeline = new RAGPipeline(db);
+
+  await pipeline.initialize();
 
   console.log(chalk.blue(`🔍 Searching for export: "${query}"`));
 
   try {
-    const results = hybridSearch.search(query, 100);
+    const results = await pipeline.search(query, { limit: 100 });
 
     if (results.length === 0) {
       console.log(chalk.yellow('No results found to export.'));
@@ -52,21 +54,21 @@ export async function exportCommand(query: string, options: ExportOptions) {
   }
 }
 
-function convertToCSV(results: Array<{ title: string; path: string; combinedScore: number }>): string {
+function convertToCSV(results: Array<{ title: string; path: string; score: number }>): string {
   const header = 'Title,Path,Score\n';
   const rows = results.map(r => 
-    `"${r.title.replace(/"/g, '""')}","${r.path}",${r.combinedScore.toFixed(4)}`
+    `"${r.title.replace(/"/g, '""')}","${r.path}",${r.score.toFixed(4)}`
   ).join('\n');
   return header + rows;
 }
 
-function convertToMarkdown(results: Array<{ title: string; path: string; combinedScore: number }>): string {
+function convertToMarkdown(results: Array<{ title: string; path: string; score: number }>): string {
   let md = '# Search Results\n\n';
   md += '| # | Title | Path | Score |\n';
   md += '|---|-------|------|-------|\n';
   
   results.forEach((r, i) => {
-    md += `| ${i + 1} | ${r.title} | \`${r.path}\` | ${r.combinedScore.toFixed(4)} |\n`;
+    md += `| ${i + 1} | ${r.title} | \`${r.path}\` | ${r.score.toFixed(4)} |\n`;
   });
   
   return md;

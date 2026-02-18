@@ -1,5 +1,5 @@
 import { DatabaseManager } from '../storage/db.js';
-import { VectorSearch } from '../search/vector.js';
+import { VectorSearch } from '../search/vector-new.js';
 import { EmailIndexer } from './email.js';
 import { AppleNotesIndexer } from './apple-notes.js';
 import { Database } from 'bun:sqlite';
@@ -37,6 +37,8 @@ export class Indexer {
     this.emailIndexer = new EmailIndexer();
     this.appleNotesIndexer = new AppleNotesIndexer();
   }
+
+  async initialize(): Promise<void> {}
 
   async indexCollection(collection: Collection): Promise<void> {
     if (collection.type === 'apple-notes') {
@@ -76,7 +78,7 @@ export class Indexer {
         });
 
         if (this.vectorSearch.isAvailable()) {
-          this.vectorSearch.indexDocument(docId, content);
+          await this.vectorSearch.indexDocument(docId, content);
         }
       } catch (error) {
         console.warn(`  Failed to index note ${note.id}: ${error}`);
@@ -119,7 +121,7 @@ export class Indexer {
         });
 
         if (this.vectorSearch.isAvailable()) {
-          this.vectorSearch.indexDocument(docId, content);
+          await this.vectorSearch.indexDocument(docId, content);
         }
       } catch (error) {
         console.warn(`Failed to index email ${email.messageId}: ${error}`);
@@ -161,7 +163,7 @@ export class Indexer {
     });
 
     if (this.vectorSearch.isAvailable()) {
-      this.vectorSearch.indexDocument(docId, content);
+      await this.vectorSearch.indexDocument(docId, content);
     }
   }
 

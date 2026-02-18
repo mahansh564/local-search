@@ -1,7 +1,7 @@
 import readline from 'readline';
 import { Database } from 'bun:sqlite';
 import { DatabaseManager } from '../../storage/db.js';
-import { HybridSearch } from '../../search/hybrid.js';
+import { RAGPipeline } from '../../search/pipeline.js';
 import path from 'path';
 import os from 'os';
 
@@ -16,7 +16,9 @@ export async function interactiveCommand() {
   const dbPath = path.join(os.homedir(), '.search-cli', 'index.sqlite');
   const db = new Database(dbPath);
   const dbManager = new DatabaseManager(dbPath);
-  const hybridSearch = new HybridSearch(db);
+  const pipeline = new RAGPipeline(db);
+
+  await pipeline.initialize();
 
   const rl = readline.createInterface({
     input: process.stdin,
@@ -35,7 +37,7 @@ export async function interactiveCommand() {
     console.log(`🔍 Query: "${query}"\n`);
 
     try {
-      const results = hybridSearch.search(query, 10);
+      const results = await pipeline.search(query, { limit: 10 });
 
       if (results.length === 0) {
         console.log('No results found.\n');
@@ -44,11 +46,17 @@ export async function interactiveCommand() {
 
       console.log(`Found ${results.length} results:\n`);
 
-      results.forEach((result: { title: string; path: string; combinedScore: number }, index: number) => {
+      results.forEach((result, index: number) => {
         const num = (index + 1).toString().padStart(2, ' ');
         console.log(`${num}. ${result.title || path.basename(result.path)}`);
         console.log(`    Path: ${result.path}`);
-        console.log(`    Score: ${result.combinedScore.toFixed(4)}`);
+        console.log(`    Score: ${result.score.toFixed(4)}`);
+        if (result.bm25Score) {
+          console.log(`    BM25: ${result.bm25Score.toFixed(4)}`);
+        }
+        if (result.vectorScore) {
+          console.log(`    Vector: ${result.vectorScore.toFixed(4)}`);
+        }
         console.log();
       });
     } catch (error) {

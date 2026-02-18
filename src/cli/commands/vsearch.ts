@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import { Database } from 'bun:sqlite';
-import { VectorSearch } from '../../search/vector.js';
+import { VectorSearch } from '../../search/vector-new.js';
 import path from 'path';
 import os from 'os';
 
@@ -22,7 +22,7 @@ export async function vsearchCommand(query: string, options: VSearchOptions) {
   console.log();
 
   try {
-    const results = vectorSearch.search(query, parseInt(options.limit));
+    const results = await vectorSearch.search(query, parseInt(options.limit));
 
     if (results.length === 0) {
       console.log(chalk.yellow('No results found.'));
@@ -35,6 +35,7 @@ export async function vsearchCommand(query: string, options: VSearchOptions) {
       console.log(chalk.bold(result.title || path.basename(result.path)));
       console.log(chalk.gray(`  Path: ${result.path}`));
       console.log(chalk.gray(`  Distance: ${result.distance.toFixed(4)}`));
+      console.log(chalk.gray(`  Chunk: ${result.chunkIndex}`));
       console.log();
     }
   } catch (error) {

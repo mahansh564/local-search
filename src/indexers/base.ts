@@ -1,3 +1,4 @@
+import '../lib/sqlite-setup.js';
 import { DatabaseManager } from '../storage/db.js';
 import { VectorSearch } from '../search/vector-new.js';
 import { EmailIndexer } from './email.js';

@@ -1,3 +1,4 @@
+import '../lib/sqlite-setup.js';
 import { Database } from 'bun:sqlite';
 import * as sqliteVec from 'sqlite-vec';
 import { EmbeddingGenerator } from './embeddings-new.js';
@@ -106,9 +107,8 @@ export class VectorSearch {
         FROM ${this.tableName} v
         JOIN document_chunks c ON v.rowid = c.id
         JOIN documents d ON c.document_id = d.id
-        WHERE embedding MATCH vec_f32(?)
+        WHERE embedding MATCH vec_f32(?) AND k = ${limit}
         ORDER BY distance
-        LIMIT ${limit}
       `)
       .all(JSON.stringify(Array.from(queryVector))) as Array<{
         chunk_id: number;

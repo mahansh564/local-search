@@ -1,3 +1,4 @@
+import '../lib/sqlite-setup.js';
 import { Database } from 'bun:sqlite';
 import fs from 'fs';
 

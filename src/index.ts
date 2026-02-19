@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import './lib/sqlite-setup.js';
 import { Command } from 'commander';
 import { initCommand } from './cli/commands/init.js';
 import { addCommand } from './cli/commands/add.js';

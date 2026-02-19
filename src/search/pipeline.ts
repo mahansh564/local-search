@@ -12,7 +12,6 @@ export interface RAGConfig {
   vectorWeight?: number;
   bm25Weight?: number;
   rrfK?: number;
-  rerankTopK?: number;
   enableReranking?: boolean;
 }
 
@@ -34,7 +33,6 @@ export interface RAGQueryOptions {
   limit?: number;
   filter?: FilterGroup;
   enableReranking?: boolean;
-  rerankTopK?: number;
 }
 
 export class RAGPipeline {
@@ -50,7 +48,6 @@ export class RAGPipeline {
     this.db = db;
     this.config = {
       rrfK: 60,
-      rerankTopK: 10,
       enableReranking: true,
       ...config,
     };
@@ -87,11 +84,11 @@ export class RAGPipeline {
   async search(query: string, options: RAGQueryOptions = {}): Promise<RAGResult[]> {
     const limit = options.limit || 10;
     const enableReranking = options.enableReranking ?? this.config.enableReranking;
-    const rerankTopK = options.rerankTopK || this.config.rerankTopK || limit * 2;
+    const fetchMultiplier = 3;
 
     const [vectorResults, bm25Results] = await Promise.all([
-      this.vectorSearch.search(query, limit * 2),
-      Promise.resolve(this.bm25.search(query, limit * 2)),
+      this.vectorSearch.search(query, limit * fetchMultiplier),
+      Promise.resolve(this.bm25.search(query, limit * fetchMultiplier)),
     ]);
 
     let filteredVectorResults = vectorResults;
@@ -99,7 +96,9 @@ export class RAGPipeline {
       filteredVectorResults = await this.filterVectorResults(vectorResults, options.filter);
     }
 
-    const vectorRanked = filteredVectorResults.map((r, i) => ({
+    const deduplicatedVectorResults = this.deduplicateByDocumentId(filteredVectorResults);
+
+    const vectorRanked = deduplicatedVectorResults.map((r, i) => ({
       id: r.documentId.toString(),
       score: r.distance,
       rank: i,
@@ -117,13 +116,42 @@ export class RAGPipeline {
       { source: 'bm25', results: bm25Ranked },
     ]);
 
-    const results = await this.fetchDocuments(fused.slice(0, rerankTopK));
+    const results = await this.fetchDocuments(fused.slice(0, limit * fetchMultiplier));
+    const deduplicatedResults = this.deduplicateByPath(results).slice(0, limit);
 
-    if (enableReranking && results.length > 0) {
-      return await this.rerankResults(query, results);
+    if (enableReranking && deduplicatedResults.length > 0) {
+      return await this.rerankResults(query, deduplicatedResults);
     }
 
-    return results;
+    return deduplicatedResults;
+  }
+
+  private deduplicateByDocumentId(
+    results: Awaited<ReturnType<VectorSearch['search']>>
+  ): typeof results {
+    const bestByDocument = new Map<number, typeof results[0]>();
+    
+    for (const result of results) {
+      const existing = bestByDocument.get(result.documentId);
+      if (!existing || result.distance < existing.distance) {
+        bestByDocument.set(result.documentId, result);
+      }
+    }
+    
+    return Array.from(bestByDocument.values());
+  }
+
+  private deduplicateByPath(results: RAGResult[]): RAGResult[] {
+    const bestByPath = new Map<string, RAGResult>();
+    
+    for (const result of results) {
+      const existing = bestByPath.get(result.path);
+      if (!existing || result.score > existing.score) {
+        bestByPath.set(result.path, result);
+      }
+    }
+    
+    return Array.from(bestByPath.values());
   }
 
   private async filterVectorResults(

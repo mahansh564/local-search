@@ -14,6 +14,7 @@ A terminal CLI search application for local notes, files, and emails with **stat
   - Local embeddings via Xenova Transformers (MiniLM-L6-v2)
   - No API keys required - runs entirely offline
   - Per-chunk indexing with parent document tracking
+  - Automatic deduplication (best chunk per document, unique paths only)
 
 - **Metadata Filtering**:
   - JSON path-based filters
@@ -55,9 +56,13 @@ A terminal CLI search application for local notes, files, and emails with **stat
 ```
 Query → Parallel Retrieval (BM25 + Vector ANN)
            ↓
+    Chunk Deduplication (best match per document)
+           ↓
     Reciprocal Rank Fusion (RRF)
            ↓
     Metadata Filtering
+           ↓
+    Path Deduplication (unique results only)
            ↓
     Cross-Encoder Reranking
            ↓
@@ -65,10 +70,11 @@ Query → Parallel Retrieval (BM25 + Vector ANN)
 ```
 
 1. **BM25 Search**: Classic lexical search with term frequency and document length normalization
-2. **Vector Search**: Semantic similarity using embeddings via sqlite-vec ANN
+2. **Vector Search**: Semantic similarity using embeddings via sqlite-vec ANN (returns best chunk per document)
 3. **RRF Fusion**: Combines both result sets without score normalization issues
 4. **Metadata Filters**: JSON-based filtering by date, collection, file type, tags
-5. **Reranking**: Cross-encoder (MSMARCO) scores top-k results for relevance
+5. **Deduplication**: Ensures unique results by path, preventing duplicate entries from multiple document IDs or chunks
+6. **Reranking**: Cross-encoder (MSMARCO) scores top-k results for relevance
 
 ## Quick Start
 

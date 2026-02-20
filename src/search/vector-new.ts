@@ -21,6 +21,92 @@ export interface ChunkRecord {
   embedding: Float32Array;
 }
 
+/**
+ * Maximal Marginal Relevance (MMR) algorithm for retrieval.
+ * Balances relevance to query with diversity among selected results.
+ * 
+ * @param queryEmbedding - The embedding vector of the search query
+ * @param candidates - Array of candidate embeddings with their metadata
+ * @param k - Number of results to return
+ * @param lambda - Balance parameter (0 = max diversity, 1 = max relevance). Default 0.5
+ */
+function mmr(
+  queryEmbedding: number[],
+  candidates: Array<{ embedding: number[]; [key: string]: any }>,
+  k: number,
+  lambda: number = 0.5
+): Array<{ [key: string]: any }> {
+  if (candidates.length <= k) return candidates;
+  
+  const selected: Array<{ [key: string]: any }> = [];
+  const remaining = [...candidates];
+  
+  const querySimilarities = remaining.map(cand => ({
+    cand,
+    similarity: cosineSimilarity(queryEmbedding, cand.embedding)
+  }));
+  
+  querySimilarities.sort((a, b) => b.similarity - a.similarity);
+  const first = querySimilarities[0];
+  if (!first) return candidates.slice(0, k);
+  
+  selected.push(first.cand);
+  remaining.splice(remaining.indexOf(first.cand), 1);
+  
+  while (selected.length < k && remaining.length > 0) {
+    let bestScore = -Infinity;
+    let bestCandidate: typeof candidates[0] | null = null;
+    let bestIndex = -1;
+    
+    for (let i = 0; i < remaining.length; i++) {
+      const cand = remaining[i];
+      if (!cand) continue;
+      
+      const querySim = cosineSimilarity(queryEmbedding, cand.embedding);
+      
+      let maxSimilarityToSelected = 0;
+      for (const sel of selected) {
+        const sim = cosineSimilarity(cand.embedding, sel.embedding);
+        maxSimilarityToSelected = Math.max(maxSimilarityToSelected, sim);
+      }
+      
+      const mmrScore = lambda * querySim - (1 - lambda) * maxSimilarityToSelected;
+      
+      if (mmrScore > bestScore) {
+        bestScore = mmrScore;
+        bestCandidate = cand;
+        bestIndex = i;
+      }
+    }
+    
+    if (bestCandidate) {
+      selected.push(bestCandidate);
+      remaining.splice(bestIndex, 1);
+    }
+  }
+  
+  return selected;
+}
+
+function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length === 0 || b.length === 0) return 0;
+  
+  let dotProduct = 0;
+  let normA = 0;
+  let normB = 0;
+  
+  for (let i = 0; i < a.length; i++) {
+    const av = a[i] ?? 0;
+    const bv = b[i] ?? 0;
+    dotProduct += av * bv;
+    normA += av * av;
+    normB += bv * bv;
+  }
+  
+  const denom = Math.sqrt(normA) * Math.sqrt(normB);
+  return denom === 0 ? 0 : dotProduct / denom;
+}
+
 export class VectorSearch {
   private db: Database;
   private embedder: EmbeddingGenerator;
@@ -88,11 +174,18 @@ export class VectorSearch {
     }
   }
 
-  async search(query: string, limit: number = 10): Promise<VectorSearchResult[]> {
+  async search(
+    query: string,
+    limit: number = 10,
+    options: { useMMR?: boolean; mmrLambda?: number } = {}
+  ): Promise<VectorSearchResult[]> {
+    const { useMMR = false, mmrLambda = 0.5 } = options;
     await this.embedder.initialize();
 
     const queryEmbedding = await this.embedder.generateEmbedding(query);
     const queryVector = new Float32Array(queryEmbedding);
+
+    const fetchLimit = useMMR ? limit * 5 : limit;
 
     const results = this.db
       .query(`
@@ -107,7 +200,7 @@ export class VectorSearch {
         FROM ${this.tableName} v
         JOIN document_chunks c ON v.rowid = c.id
         JOIN documents d ON c.document_id = d.id
-        WHERE embedding MATCH vec_f32(?) AND k = ${limit}
+        WHERE embedding MATCH vec_f32(?) AND k = ${fetchLimit}
         ORDER BY distance
       `)
       .all(JSON.stringify(Array.from(queryVector))) as Array<{
@@ -119,6 +212,41 @@ export class VectorSearch {
         title: string;
         distance: number;
       }>;
+
+    if (useMMR && results.length > 0) {
+      const candidates = await Promise.all(
+        results.slice(0, fetchLimit).map(async (r) => ({
+          ...r,
+          embedding: await this.embedder.generateEmbedding(r.content),
+        }))
+      );
+
+      const mmrResults = mmr(
+        queryEmbedding,
+        candidates.map((c) => ({
+          embedding: c.embedding,
+          chunkId: c.chunk_id.toString(),
+          documentId: c.document_id,
+          path: c.path,
+          title: c.title,
+          content: c.content,
+          distance: c.distance,
+          chunkIndex: c.chunk_index,
+        })),
+        limit,
+        mmrLambda
+      );
+
+      return mmrResults.map((r) => ({
+        chunkId: r.chunkId as string,
+        documentId: r.documentId as number,
+        path: r.path as string,
+        title: r.title as string,
+        content: r.content as string,
+        distance: r.distance as number,
+        chunkIndex: r.chunkIndex as number,
+      }));
+    }
 
     return results.map((r) => ({
       chunkId: r.chunk_id.toString(),

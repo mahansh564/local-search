@@ -145,3 +145,54 @@ export class CrossEncoderReranker {
       .slice(0, topK);
   }
 }
+
+export class ScoreNormalizer {
+  static minMaxNormalize(results: RankedResult[]): RankedResult[] {
+    if (results.length === 0) return results;
+    
+    const scores = results.map(r => r.score ?? 0);
+    const min = Math.min(...scores);
+    const max = Math.max(...scores);
+    const range = max - min;
+    
+    if (range === 0) {
+      return results.map(r => ({ ...r, score: 1 }));
+    }
+    
+    return results.map(r => ({
+      ...r,
+      score: (r.score ?? 0 - min) / range
+    }));
+  }
+
+  static zScoreNormalize(results: RankedResult[]): RankedResult[] {
+    if (results.length === 0) return results;
+    
+    const scores = results.map(r => r.score ?? 0);
+    const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
+    const variance = scores.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / scores.length;
+    const std = Math.sqrt(variance) || 1;
+    
+    return results.map(r => ({
+      ...r,
+      score: ((r.score ?? 0) - mean) / std
+    }));
+  }
+
+  static rankNormalize(results: RankedResult[]): RankedResult[] {
+    if (results.length === 0) return results;
+    
+    const sorted = [...results].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    const scoreToRank = new Map<string, number>();
+    
+    sorted.forEach((r, i) => {
+      scoreToRank.set(r.id, i + 1);
+    });
+    
+    const maxRank = results.length;
+    return results.map(r => ({
+      ...r,
+      score: 1 - ((scoreToRank.get(r.id) ?? maxRank) - 1) / (maxRank - 1)
+    }));
+  }
+}

@@ -7,8 +7,19 @@ A terminal CLI search application for local notes, files, and emails with **stat
 - **Hybrid Search Pipeline**:
   - BM25 lexical search with proper IDF and document length normalization
   - Vector semantic search with ANN (Approximate Nearest Neighbors) via sqlite-vec
+  - **Score Normalization** before RRF fusion for fair combination
   - Reciprocal Rank Fusion (RRF) for combining results
   - Cross-encoder reranking for improved relevance
+
+- **Advanced Retrieval**:
+  - **MMR (Maximal Marginal Relevance)**: Balances relevance with diversity to avoid redundant results from same document
+  - **Query Expansion**: Automatic synonym expansion for better recall
+  - **Parent Document Retrieval**: Returns matched chunks alongside full document context
+
+- **Smart Chunking**:
+  - **Semantic chunking** that respects document structure (headers, paragraphs)
+  - Preserves context across chunk boundaries
+  - Overlap-based continuity between chunks
 
 - **Real Semantic Embeddings**:
   - Local embeddings via Xenova Transformers (MiniLM-L6-v2)
@@ -54,27 +65,37 @@ A terminal CLI search application for local notes, files, and emails with **stat
 ## Architecture
 
 ```
-Query → Parallel Retrieval (BM25 + Vector ANN)
+Query → Optional Query Expansion (synonyms)
            ↓
-    Chunk Deduplication (best match per document)
+     Parallel Retrieval (BM25 + Vector ANN)
            ↓
-    Reciprocal Rank Fusion (RRF)
+     Optional MMR (diversity-aware selection)
            ↓
-    Metadata Filtering
+     Score Normalization (min-max/rank)
            ↓
-    Path Deduplication (unique results only)
+     Reciprocal Rank Fusion (RRF)
            ↓
-    Cross-Encoder Reranking
+     Metadata Filtering
            ↓
-    Results
+     Path Deduplication (unique results only)
+           ↓
+     Parent Document Fetching (optional full content)
+           ↓
+     Cross-Encoder Reranking
+           ↓
+     Results
 ```
 
-1. **BM25 Search**: Classic lexical search with term frequency and document length normalization
-2. **Vector Search**: Semantic similarity using embeddings via sqlite-vec ANN (returns best chunk per document)
-3. **RRF Fusion**: Combines both result sets without score normalization issues
-4. **Metadata Filters**: JSON-based filtering by date, collection, file type, tags
-5. **Deduplication**: Ensures unique results by path, preventing duplicate entries from multiple document IDs or chunks
-6. **Reranking**: Cross-encoder (MSMARCO) scores top-k results for relevance
+1. **Query Expansion**: Expands query with synonyms for better recall
+2. **BM25 Search**: Classic lexical search with term frequency and document length normalization
+3. **Vector Search**: Semantic similarity using embeddings via sqlite-vec ANN (returns best chunk per document)
+4. **MMR**: Maximal Marginal Relevance balances relevance vs diversity (configurable via `mmrLambda`)
+5. **Score Normalization**: Normalizes BM25 and vector scores to [0,1] range before fusion
+6. **RRF Fusion**: Combines both result sets using rank-based fusion
+7. **Metadata Filters**: JSON-based filtering by date, collection, file type, tags
+8. **Deduplication**: Ensures unique results by path, preventing duplicate entries from multiple document IDs or chunks
+9. **Parent Documents**: Optionally returns full document content alongside matched chunks
+10. **Reranking**: Cross-encoder (MSMARCO) scores top-k results for relevance
 
 ## Quick Start
 
@@ -140,8 +161,43 @@ bun run src/index.ts query "machine learning" --limit 5
 # Disable reranking (faster)
 bun run src/index.ts query "machine learning" --rerank=false
 
+# Enable MMR for diverse results (balances relevance with diversity)
+bun run src/index.ts query "machine learning" --mmr
+
+# Set MMR lambda (0 = max diversity, 1 = max relevance, default 0.5)
+bun run src/index.ts query "machine learning" --mmr-lambda=0.3
+
+# Enable query expansion (adds synonyms for better recall)
+bun run src/index.ts query "machine learning" --expand
+
+# Include full document content in results
+bun run src/index.ts query "machine learning" --full
+
+# Combine multiple options
+bun run src/index.ts query "machine learning" --mmr --expand --limit=10
+
 # Metadata filtering (JSON)
 bun run src/index.ts query "machine learning" --filter '{"operator":"and","filters":[{"field":"collection","operator":"eq","value":"notes"}]}'
+```
+
+### Programmatic Usage
+
+```typescript
+import { RAGPipeline } from './search/pipeline.js';
+
+const pipeline = new RAGPipeline(db, {
+  enableReranking: true,
+  enableMMR: true,
+  mmrLambda: 0.5,
+  enableQueryExpansion: true,
+});
+
+const results = await pipeline.search("machine learning", {
+  limit: 10,
+  enableMMR: true,
+  includeFullDocument: true,
+  enableQueryExpansion: true,
+});
 ```
 
 ## Troubleshooting

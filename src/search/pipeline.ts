@@ -1,9 +1,11 @@
 import { Database } from 'bun:sqlite';
 import { VectorSearch } from './vector-new.js';
 import { BM25Search } from './bm25.js';
+import { EmbeddingGenerator } from './embeddings-new.js';
 import {
   ReciprocalRankFusion,
   CrossEncoderReranker,
+  ScoreNormalizer,
   type RerankInput,
 } from './reranking.js';
 import { MetadataQueryBuilder, type FilterGroup } from './filters.js';
@@ -13,6 +15,9 @@ export interface RAGConfig {
   bm25Weight?: number;
   rrfK?: number;
   enableReranking?: boolean;
+  enableMMR?: boolean;
+  mmrLambda?: number;
+  enableQueryExpansion?: boolean;
 }
 
 export interface RAGResult {
@@ -21,6 +26,8 @@ export interface RAGResult {
   path: string;
   title: string;
   content: string;
+  fullContent?: string;
+  matchedChunk?: string;
   score: number;
   vectorScore?: number;
   bm25Score?: number;
@@ -33,6 +40,9 @@ export interface RAGQueryOptions {
   limit?: number;
   filter?: FilterGroup;
   enableReranking?: boolean;
+  enableMMR?: boolean;
+  includeFullDocument?: boolean;
+  enableQueryExpansion?: boolean;
 }
 
 export class RAGPipeline {
@@ -42,6 +52,7 @@ export class RAGPipeline {
   private rrf: ReciprocalRankFusion;
   private reranker: CrossEncoderReranker;
   private queryBuilder: MetadataQueryBuilder;
+  private embedder: EmbeddingGenerator;
   private config: RAGConfig;
 
   constructor(db: Database, config: RAGConfig = {}) {
@@ -49,6 +60,9 @@ export class RAGPipeline {
     this.config = {
       rrfK: 60,
       enableReranking: true,
+      enableMMR: false,
+      mmrLambda: 0.5,
+      enableQueryExpansion: false,
       ...config,
     };
 
@@ -56,6 +70,7 @@ export class RAGPipeline {
     this.bm25 = new BM25Search();
     this.rrf = new ReciprocalRankFusion(this.config.rrfK);
     this.reranker = new CrossEncoderReranker();
+    this.embedder = new EmbeddingGenerator();
     this.queryBuilder = new MetadataQueryBuilder();
   }
 
@@ -84,10 +99,23 @@ export class RAGPipeline {
   async search(query: string, options: RAGQueryOptions = {}): Promise<RAGResult[]> {
     const limit = options.limit || 10;
     const enableReranking = options.enableReranking ?? this.config.enableReranking;
-    const fetchMultiplier = 3;
+    const enableMMR = options.enableMMR ?? this.config.enableMMR ?? false;
+    const mmrLambda = this.config.mmrLambda ?? 0.5;
+    const includeFullDocument = options.includeFullDocument ?? false;
+    const enableQueryExpansion = options.enableQueryExpansion ?? this.config.enableQueryExpansion ?? false;
+    const fetchMultiplier = enableMMR ? 5 : 3;
+
+    let searchQuery = query;
+    let queryVariations: string[] = [query];
+
+    if (enableQueryExpansion) {
+      await this.embedder.initialize();
+      const expanded = await this.embedder.generateExpandedEmbeddings(query);
+      queryVariations = expanded.queryVariations;
+    }
 
     const [vectorResults, bm25Results] = await Promise.all([
-      this.vectorSearch.search(query, limit * fetchMultiplier),
+      this.vectorSearch.search(searchQuery, limit * fetchMultiplier, { useMMR: enableMMR, mmrLambda }),
       Promise.resolve(this.bm25.search(query, limit * fetchMultiplier)),
     ]);
 
@@ -98,25 +126,32 @@ export class RAGPipeline {
 
     const deduplicatedVectorResults = this.deduplicateByDocumentId(filteredVectorResults);
 
-    const vectorRanked = deduplicatedVectorResults.map((r, i) => ({
-      id: r.documentId.toString(),
-      score: r.distance,
-      rank: i,
-      metadata: r,
-    }));
+    const vectorRanked = ScoreNormalizer.rankNormalize(
+      deduplicatedVectorResults.map((r, i) => ({
+        id: r.documentId.toString(),
+        score: r.distance,
+        rank: i,
+        metadata: r,
+      }))
+    );
 
-    const bm25Ranked = bm25Results.map((r, i) => ({
-      id: r.id,
-      score: r.score,
-      rank: i,
-    }));
+    const bm25Ranked = ScoreNormalizer.rankNormalize(
+      bm25Results.map((r, i) => ({
+        id: r.id,
+        score: r.score,
+        rank: i,
+      }))
+    );
 
     const fused = this.rrf.fuse([
       { source: 'vector', results: vectorRanked },
       { source: 'bm25', results: bm25Ranked },
     ]);
 
-    const results = await this.fetchDocuments(fused.slice(0, limit * fetchMultiplier));
+    const results = await this.fetchDocuments(fused.slice(0, limit * fetchMultiplier), {
+      includeFullDocument,
+      vectorResults: deduplicatedVectorResults,
+    });
     const deduplicatedResults = this.deduplicateByPath(results).slice(0, limit);
 
     if (enableReranking && deduplicatedResults.length > 0) {
@@ -179,8 +214,25 @@ export class RAGPipeline {
   }
 
   private async fetchDocuments(
-    fused: Awaited<ReturnType<ReciprocalRankFusion['fuse']>>
+    fused: Awaited<ReturnType<ReciprocalRankFusion['fuse']>>,
+    options: {
+      includeFullDocument?: boolean;
+      vectorResults?: Array<{
+        documentId: number;
+        content: string;
+        chunkIndex: number;
+      }>;
+    } = {}
   ): Promise<RAGResult[]> {
+    const { includeFullDocument = false, vectorResults = [] } = options;
+    const vectorResultsMap = new Map<number, typeof vectorResults[0]>();
+    for (const vr of vectorResults) {
+      const existing = vectorResultsMap.get(vr.documentId);
+      if (!existing || vr.chunkIndex < existing.chunkIndex) {
+        vectorResultsMap.set(vr.documentId, vr);
+      }
+    }
+
     const results: RAGResult[] = [];
 
     for (const item of fused) {
@@ -205,13 +257,16 @@ export class RAGPipeline {
 
       const vectorSource = item.sources.find((s) => s.source === 'vector');
       const bm25Source = item.sources.find((s) => s.source === 'bm25');
+      const matchedChunk = vectorResultsMap.get(docId)?.content;
 
       results.push({
         id: item.id,
         documentId: doc.id,
         path: doc.path,
         title: doc.title,
-        content: doc.content.substring(0, 500),
+        content: includeFullDocument ? doc.content : doc.content.substring(0, 500),
+        fullContent: includeFullDocument ? doc.content : undefined,
+        matchedChunk: matchedChunk ? matchedChunk.substring(0, 500) : undefined,
         score: item.score,
         vectorScore: vectorSource?.originalScore,
         bm25Score: bm25Source?.originalScore,

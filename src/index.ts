@@ -67,6 +67,11 @@ program
   .description('Hybrid search using FTS5 + Vector with RRF ranking')
   .argument('<query>', 'Search query')
   .option('-l, --limit <n>', 'Maximum results', '10')
+  .option('--rerank <bool>', 'Enable reranking', 'true')
+  .option('--mmr', 'Enable MMR (Maximal Marginal Relevance) for diverse results')
+  .option('--mmr-lambda <float>', 'MMR lambda (0=diversity, 1=relevance)', '0.5')
+  .option('--expand', 'Enable query expansion with synonyms')
+  .option('--full', 'Include full document content in results')
   .action(queryCommand);
 
 program

@@ -13,6 +13,24 @@ export interface TextChunk {
   index: number;
 }
 
+const COMMON_SYNONYMS: Record<string, string[]> = {
+  'search': ['find', 'lookup', 'query', 'retrieve'],
+  'find': ['search', 'locate', 'discover', 'get'],
+  'error': ['bug', 'issue', 'problem', 'failure'],
+  'fix': ['repair', 'resolve', 'correct', 'patch'],
+  'create': ['make', 'build', 'generate', 'add'],
+  'delete': ['remove', 'erase', 'drop', 'clear'],
+  'update': ['modify', 'edit', 'change', 'refresh'],
+  'show': ['display', 'view', 'list', 'fetch'],
+  'get': ['obtain', 'fetch', 'retrieve', 'acquire'],
+  'run': ['execute', 'start', 'launch', 'invoke'],
+  'config': ['configuration', 'settings', 'options'],
+  'test': ['testing', 'verify', 'check', 'validate'],
+  'doc': ['document', 'docs', 'documentation'],
+  'note': ['notes', 'memo', 'record'],
+  'email': ['mail', 'message', 'emails'],
+};
+
 export class EmbeddingGenerator {
   private embedder: FeatureExtractionPipeline | null = null;
   private encoder: ReturnType<typeof encodingForModel>;
@@ -49,25 +67,77 @@ export class EmbeddingGenerator {
   }
 
   chunkText(text: string): TextChunk[] {
-    const tokens = this.encoder.encode(text);
-    const chunks: TextChunk[] = [];
+    return this.semanticChunkText(text);
+  }
 
-    let start = 0;
+  semanticChunkText(text: string): TextChunk[] {
+    const sections: string[] = [];
+    
+    const markdownHeaders = text.split(/(?=^#{1,6}\s)/m);
+    for (const section of markdownHeaders) {
+      if (section.trim().startsWith('#')) {
+        sections.push(section);
+        continue;
+      }
+      
+      const paragraphs = section.split(/\n\n+/);
+      for (const para of paragraphs) {
+        if (para.trim()) sections.push(para);
+      }
+    }
+
+    if (sections.length === 0) {
+      sections.push(text);
+    }
+
+    const chunks: TextChunk[] = [];
+    let currentChunk = '';
+    let currentTokens = 0;
     let chunkIndex = 0;
 
-    while (start < tokens.length) {
-      const end = Math.min(start + this.maxTokens, tokens.length);
-      const chunkTokens = tokens.slice(start, end);
-      const chunkText = this.encoder.decode(chunkTokens);
+    for (const section of sections) {
+      const sectionTokens = this.encoder.encode(section).length;
+      
+      if (sectionTokens > this.maxTokens * 1.5) {
+        if (currentChunk) {
+          chunks.push({
+            text: currentChunk.trim(),
+            tokens: currentTokens,
+            index: chunkIndex++,
+          });
+          currentChunk = '';
+          currentTokens = 0;
+        }
+        
+        const subChunks = this.chunkText(section);
+        for (const sub of subChunks) {
+          chunks.push(sub);
+        }
+        continue;
+      }
 
+      if (currentTokens + sectionTokens > this.maxTokens && currentChunk) {
+        chunks.push({
+          text: currentChunk.trim(),
+          tokens: currentTokens,
+          index: chunkIndex++,
+        });
+        
+        const overlapTokens = this.encoder.encode(currentChunk).slice(-this.overlap);
+        currentChunk = this.encoder.decode(overlapTokens) + ' ' + section;
+        currentTokens = this.encoder.encode(currentChunk).length;
+      } else {
+        currentChunk += (currentChunk ? '\n\n' : '') + section;
+        currentTokens += sectionTokens;
+      }
+    }
+
+    if (currentChunk) {
       chunks.push({
-        text: chunkText,
-        tokens: chunkTokens.length,
-        index: chunkIndex++,
+        text: currentChunk.trim(),
+        tokens: currentTokens,
+        index: chunkIndex,
       });
-
-      if (end >= tokens.length) break;
-      start = end - this.overlap;
     }
 
     return chunks;
@@ -89,5 +159,63 @@ export class EmbeddingGenerator {
 
   getEmbeddingDimensions(): number {
     return EmbeddingGenerator.EMBEDDING_DIMENSIONS;
+  }
+
+  expandQuery(query: string): string[] {
+    const tokens = query.toLowerCase().split(/\s+/);
+    const expanded = [query];
+
+    for (const token of tokens) {
+      const synonyms = COMMON_SYNONYMS[token];
+      if (synonyms) {
+        for (const syn of synonyms) {
+          const newQuery = query.replace(new RegExp(`\\b${token}\\b`, 'i'), syn);
+          if (newQuery !== query && !expanded.includes(newQuery)) {
+            expanded.push(newQuery);
+          }
+        }
+      }
+    }
+
+    if (tokens.length > 1) {
+      expanded.push(tokens.slice(0, -1).join(' '));
+      expanded.push(tokens.slice(1).join(' '));
+    }
+
+    return expanded;
+  }
+
+  async generateExpandedEmbeddings(
+    query: string
+  ): Promise<{ original: number[]; expanded: number[]; queryVariations: string[] }> {
+    const variations = this.expandQuery(query);
+    const embeddings = await Promise.all(
+      variations.map((v) => this.generateEmbedding(v))
+    );
+
+    const firstEmbedding = embeddings[0];
+    if (!firstEmbedding || embeddings.length === 0) {
+      return {
+        original: [],
+        expanded: [],
+        queryVariations: variations,
+      };
+    }
+
+    const meanEmbedding = new Array(firstEmbedding.length).fill(0);
+    for (const emb of embeddings) {
+      for (let i = 0; i < emb.length; i++) {
+        meanEmbedding[i] += emb[i];
+      }
+    }
+    for (let i = 0; i < meanEmbedding.length; i++) {
+      meanEmbedding[i] /= embeddings.length;
+    }
+
+    return {
+      original: firstEmbedding,
+      expanded: meanEmbedding,
+      queryVariations: variations,
+    };
   }
 }

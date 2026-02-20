@@ -8,6 +8,10 @@ interface QueryOptions {
   limit: string;
   filter?: string;
   rerank?: string;
+  mmr?: boolean;
+  mmrLambda?: string;
+  expand?: boolean;
+  full?: boolean;
 }
 
 export async function queryCommand(query: string, options: QueryOptions) {
@@ -15,9 +19,18 @@ export async function queryCommand(query: string, options: QueryOptions) {
   const db = new Database(dbPath);
   const pipeline = new RAGPipeline(db, {
     enableReranking: options.rerank !== 'false',
+    enableMMR: options.mmr ?? false,
+    mmrLambda: options.mmrLambda ? parseFloat(options.mmrLambda) : 0.5,
+    enableQueryExpansion: options.expand ?? false,
   });
 
-  console.log(chalk.blue(`🔍 RAG Search: "${query}"`));
+  const features = [];
+  if (options.mmr) features.push('MMR');
+  if (options.expand) features.push('Query Expansion');
+  if (options.full) features.push('Full Docs');
+  const featureStr = features.length > 0 ? ` (${features.join(' + ')})` : '';
+
+  console.log(chalk.blue(`🔍 RAG Search: "${query}"${featureStr}`));
   console.log(chalk.gray('(BM25 + Vector → RRF → Reranking)\n'));
 
   try {
@@ -28,6 +41,9 @@ export async function queryCommand(query: string, options: QueryOptions) {
     const results = await pipeline.search(query, {
       limit: parseInt(options.limit),
       filter,
+      enableMMR: options.mmr,
+      enableQueryExpansion: options.expand,
+      includeFullDocument: options.full,
     });
 
     if (results.length === 0) {
@@ -52,7 +68,13 @@ export async function queryCommand(query: string, options: QueryOptions) {
         console.log(chalk.gray(`  - Rerank Score: ${result.rerankScore.toFixed(4)}`));
       }
 
-      console.log(chalk.gray(`  Content: ${result.content.substring(0, 150)}...`));
+      if (options.full && result.fullContent) {
+        console.log(chalk.gray(`  Content: ${result.fullContent.substring(0, 300)}...`));
+      } else if (result.matchedChunk) {
+        console.log(chalk.gray(`  Matched Chunk: ${result.matchedChunk.substring(0, 150)}...`));
+      } else {
+        console.log(chalk.gray(`  Content: ${result.content.substring(0, 150)}...`));
+      }
       console.log();
     }
   } catch (error) {

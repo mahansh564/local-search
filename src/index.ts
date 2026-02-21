@@ -13,6 +13,7 @@ import { statusCommand } from './cli/commands/status.js';
 import { interactiveCommand } from './cli/commands/interactive.js';
 import { watchCommand } from './cli/commands/watch.js';
 import { exportCommand } from './cli/commands/export.js';
+import { askCommand } from './cli/commands/ask.js';
 
 const program = new Command();
 
@@ -103,5 +104,14 @@ program
   .option('-f, --format <format>', 'Export format (json|csv|markdown)', 'markdown')
   .option('-o, --output <file>', 'Output file path')
   .action(exportCommand);
+
+program
+  .command('ask')
+  .description('Ask questions about your indexed documents using LLM')
+  .argument('<question>', 'Question to ask about your documents')
+  .option('-l, --limit <n>', 'Maximum documents to use as context', '5')
+  .option('-m, --model <model>', 'Ollama model to use')
+  .option('--no-stream', 'Disable streaming response')
+  .action(askCommand);
 
 program.parse();

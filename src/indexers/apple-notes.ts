@@ -21,11 +21,8 @@ export class AppleNotesIndexer {
 
   private findNotesDatabase(): string {
     const possiblePaths = [
-      // Modern CoreData format (macOS Sonoma+) - where actual notes are stored
       path.join(os.homedir(), 'Library', 'Group Containers', 'group.com.apple.notes', 'NoteStore.sqlite'),
-      // Container format
       path.join(os.homedir(), 'Library', 'Containers', 'com.apple.Notes', 'Data', 'Library', 'Notes', 'NotesV7.storedata'),
-      // Legacy SQLite format
       path.join(os.homedir(), 'Library', 'Notes', 'Notes.db'),
       path.join(os.homedir(), 'Library', 'Containers', 'com.apple.Notes', 'Data', 'Library', 'Notes', 'Notes.db'),
       path.join(os.homedir(), 'Library', 'Group Containers', 'group.com.apple.notes', 'Notes.db'),
@@ -54,12 +51,17 @@ export class AppleNotesIndexer {
     }
 
     const db = new Database(this.dbPath, { readonly: true });
-
     const notes: AppleNote[] = [];
 
     try {
       if (this.isNoteStoreFormat(db)) {
-        notes.push(...this.indexNoteStoreFormat(db));
+        // Try AppleScript first for full note content, fall back to SQLite
+        const appleScriptNotes = this.indexNoteStoreFormatAppleScript(db);
+        if (appleScriptNotes.length > 0) {
+          notes.push(...appleScriptNotes);
+        } else {
+          notes.push(...this.indexNoteStoreFormatSQLite(db));
+        }
       } else if (this.isModernFormat(db)) {
         notes.push(...this.indexModernFormat(db));
       } else {
@@ -97,7 +99,94 @@ export class AppleNotesIndexer {
     }
   }
 
-  private indexNoteStoreFormat(db: Database): AppleNote[] {
+  private indexNoteStoreFormatAppleScript(db: Database): AppleNote[] {
+    console.log('  Using AppleScript to fetch full note content...');
+    
+    const notes: AppleNote[] = [];
+    
+    const startTime = Date.now();
+    
+    // Use simpler output format - pipe-delimited with newlines
+    const script = `
+      use framework "Foundation"
+      use scripting additions
+      
+      set outputLines to {}
+      tell application "Notes"
+        repeat with n in every note
+          set noteId to id of n
+          set noteTitle to name of n
+          set noteBody to plaintext of n
+          -- Replace newlines and pipes in content to avoid parsing issues
+          set bodyCleaned to do shell script "echo " & quoted form of noteBody & " | tr '\n' '¬' | tr '|' '§'"
+          set lineContent to noteId & "|" & noteTitle & "|" & bodyCleaned
+          set end of outputLines to lineContent
+        end repeat
+      end tell
+      
+      -- Join with newlines using AppleScript's text item delimiters
+      set AppleScript's text item delimiters to "\n"
+      set output to outputLines as text
+      set AppleScript's text item delimiters to ""
+      return output
+    `;
+
+    try {
+      const { execSync } = require('child_process');
+      
+      // Write script to temp file to avoid shell escaping issues
+      const tmpDir = os.tmpdir();
+      const scriptPath = path.join(tmpDir, `notes_${Date.now()}.applescript`);
+      fs.writeFileSync(scriptPath, script);
+      
+      const output = execSync(`osascript "${scriptPath}"`, {
+        encoding: 'utf8',
+        maxBuffer: 50 * 1024 * 1024,
+        timeout: 300000
+      });
+      
+      // Clean up temp file
+      fs.unlinkSync(scriptPath);
+
+      // Parse pipe-delimited output: id|title|content
+      const rawOutput = output.trim();
+      const lines = rawOutput.split('\n').filter(line => line.includes('|'));
+      console.log(`  Found ${lines.length} notes, processing...`);
+      
+      for (const line of lines) {
+        const parts = line.split('|');
+        if (parts.length < 3) continue;
+        
+        const noteId = parts[0];
+        const title = parts[1] || 'Untitled';
+        let content = parts.slice(2).join('|'); // Join back in case content had pipes
+        
+        // Restore newlines and pipes from escape sequences
+        content = content.replace(/¬/g, '\n').replace(/§/g, '|');
+        
+        if (content.trim() || title !== 'Untitled') {
+          notes.push({
+            id: notes.length + 1,
+            title: title,
+            content: content,
+            created: new Date(),
+            modified: new Date(),
+          });
+        }
+      }
+
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      console.log(`  Fetched ${notes.length} notes in ${elapsed}s`);
+      
+    } catch (error) {
+      console.warn(`  AppleScript JSON failed: ${error}, falling back to SQLite...`);
+      return this.indexNoteStoreFormatSQLite(db);
+    }
+    
+    return notes;
+  }
+
+  private indexNoteStoreFormatSQLite(db: Database): AppleNote[] {
     const notes: AppleNote[] = [];
     
     const results = db.query(`

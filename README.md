@@ -148,6 +148,33 @@ bun run src/index.ts search "your query"
 | `interactive` | Interactive search mode |
 | `watch` | Watch for changes |
 | `export <query>` | Export results (JSON/CSV/Markdown) |
+| `ask <question>` | Ask questions about indexed documents (requires Ollama) |
+
+### Ask Command (Q&A)
+
+The `ask` command uses a local LLM (Ollama) to answer questions about your indexed documents.
+
+**Prerequisites:**
+- [Install Ollama](https://github.com/ollama/ollama)
+- Pull a model: `ollama pull llama3.1` (or another model)
+
+```bash
+# Ask a question about your documents
+bun run src/index.ts ask "what is this project about?"
+
+# Use a different model
+bun run src/index.ts ask "what is this project about?" --model mistral
+
+# Disable streaming for cleaner output
+bun run src/index.ts ask "what is this project about?" --no-stream
+
+# Limit number of documents used as context
+bun run src/index.ts ask "what is this project about?" --limit 3
+```
+
+**Environment Variables:**
+- `OLLAMA_HOST` - Ollama server URL (default: http://localhost:11434)
+- `OLLAMA_MODEL` - Default model to use (default: llama3.1)
 
 ### Query Options
 

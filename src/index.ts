@@ -73,6 +73,7 @@ program
   .option('--mmr-lambda <float>', 'MMR lambda (0=diversity, 1=relevance)', '0.5')
   .option('--expand', 'Enable query expansion with synonyms')
   .option('--full', 'Include full document content in results')
+  .option('--debug', 'Print debug info for retrieval')
   .action(queryCommand);
 
 program

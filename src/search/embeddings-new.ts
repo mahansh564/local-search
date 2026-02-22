@@ -108,10 +108,14 @@ export class EmbeddingGenerator {
           currentChunk = '';
           currentTokens = 0;
         }
-        
-        const subChunks = this.chunkText(section);
-        for (const sub of subChunks) {
-          chunks.push(sub);
+
+        const subSections = this.splitLargeSection(section);
+        for (const sub of subSections) {
+          chunks.push({
+            text: sub.text,
+            tokens: sub.tokens,
+            index: chunkIndex++,
+          });
         }
         continue;
       }
@@ -138,6 +142,41 @@ export class EmbeddingGenerator {
         tokens: currentTokens,
         index: chunkIndex,
       });
+    }
+
+    return chunks;
+  }
+
+  private splitLargeSection(section: string): Array<{ text: string; tokens: number }> {
+    const tokens = this.encoder.encode(section);
+    if (tokens.length <= this.maxTokens) {
+      return [{ text: section, tokens: tokens.length }];
+    }
+
+    const effectiveOverlap = Math.min(
+      this.overlap,
+      Math.max(0, this.maxTokens - 1)
+    );
+    const step = Math.max(1, this.maxTokens - effectiveOverlap);
+
+    const chunks: Array<{ text: string; tokens: number }> = [];
+    let start = 0;
+    while (start < tokens.length) {
+      const end = Math.min(start + this.maxTokens, tokens.length);
+      let slice = tokens.slice(start, end);
+      let text = this.encoder.decode(slice).trim();
+      let tokenCount = this.encoder.encode(text).length;
+
+      while (tokenCount > this.maxTokens && slice.length > 1) {
+        slice = slice.slice(0, slice.length - 1);
+        text = this.encoder.decode(slice).trim();
+        tokenCount = this.encoder.encode(text).length;
+      }
+
+      chunks.push({ text, tokens: tokenCount });
+
+      if (end >= tokens.length) break;
+      start += step;
     }
 
     return chunks;

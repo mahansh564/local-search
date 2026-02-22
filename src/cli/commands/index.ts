@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import { ConfigManager } from '../../utils/config.js';
 import { Indexer } from '../../indexers/base.js';
+import { DatabaseManager } from '../../storage/db.js';
 import path from 'path';
 import os from 'os';
 
@@ -27,6 +28,12 @@ export async function indexCommand(options: IndexOptions) {
   }
   
   const dbPath = path.join(configDir, 'index.sqlite');
+  const dbManager = new DatabaseManager(dbPath);
+  dbManager.init();
+  const removed = dbManager.dedupeDocumentsByPath();
+  if (removed > 0) {
+    console.log(chalk.yellow(`Removed ${removed} duplicate document rows by path.`));
+  }
   const indexer = new Indexer(dbPath);
   
   for (const collection of targetCollections) {

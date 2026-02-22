@@ -128,6 +128,27 @@ export class DatabaseManager {
       [doc.hash, doc.content, now]
     );
 
+    const existing = this.db
+      .query(
+        'SELECT id FROM documents WHERE path = ? ORDER BY indexed_at DESC, id DESC LIMIT 1'
+      )
+      .get(doc.path) as { id: number } | null;
+
+    if (existing?.id) {
+      this.db.run(
+        'UPDATE documents SET title = ?, hash = ?, indexed_at = ? WHERE id = ?',
+        [doc.title, doc.hash, now, existing.id]
+      );
+
+      this.db.run('DELETE FROM documents_fts WHERE rowid = ?', [existing.id]);
+      this.db.run(
+        'INSERT INTO documents_fts (rowid, path, title, body) VALUES (?, ?, ?, ?)',
+        [existing.id, doc.path, doc.title, doc.content]
+      );
+
+      return existing.id;
+    }
+
     const result = this.db.run(
       'INSERT INTO documents (path, title, hash, indexed_at) VALUES (?, ?, ?, ?)',
       [doc.path, doc.title, doc.hash, now]
@@ -141,5 +162,30 @@ export class DatabaseManager {
     );
 
     return Number(docId);
+  }
+
+  dedupeDocumentsByPath(): number {
+    const duplicates = this.db
+      .query(`
+        SELECT id FROM (
+          SELECT
+            id,
+            ROW_NUMBER() OVER (PARTITION BY path ORDER BY indexed_at DESC, id DESC) as rn
+          FROM documents
+        )
+        WHERE rn > 1
+      `)
+      .all() as Array<{ id: number }>;
+
+    if (duplicates.length === 0) return 0;
+
+    const ids = duplicates.map((d) => d.id);
+    const placeholders = ids.map(() => '?').join(',');
+
+    this.db.run(`DELETE FROM documents WHERE id IN (${placeholders})`, ids);
+    this.db.run(`DELETE FROM documents_fts WHERE rowid IN (${placeholders})`, ids);
+    this.db.run(`DELETE FROM document_chunks WHERE document_id IN (${placeholders})`, ids);
+
+    return ids.length;
   }
 }

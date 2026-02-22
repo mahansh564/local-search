@@ -43,6 +43,22 @@ export interface RAGQueryOptions {
   enableMMR?: boolean;
   includeFullDocument?: boolean;
   enableQueryExpansion?: boolean;
+  debug?: boolean;
+}
+
+export function distanceToScore(distance: number): number {
+  const safeDistance = Math.max(0, distance);
+  return 1 / (1 + safeDistance);
+}
+
+export function buildRerankDocument(input: {
+  title: string;
+  content: string;
+  fullContent?: string;
+  matchedChunk?: string;
+}): string {
+  const body = input.matchedChunk ?? input.fullContent ?? input.content;
+  return `${input.title} ${body}`.trim();
 }
 
 export class RAGPipeline {
@@ -119,6 +135,10 @@ export class RAGPipeline {
       Promise.resolve(this.bm25.search(query, limit * fetchMultiplier)),
     ]);
 
+    if (options.debug) {
+      this.logDebugResults(vectorResults, bm25Results);
+    }
+
     let filteredVectorResults = vectorResults;
     if (options.filter) {
       filteredVectorResults = await this.filterVectorResults(vectorResults, options.filter);
@@ -129,7 +149,7 @@ export class RAGPipeline {
     const vectorRanked = ScoreNormalizer.rankNormalize(
       deduplicatedVectorResults.map((r, i) => ({
         id: r.documentId.toString(),
-        score: r.distance,
+        score: distanceToScore(r.distance),
         rank: i,
         metadata: r,
       }))
@@ -221,6 +241,7 @@ export class RAGPipeline {
         documentId: number;
         content: string;
         chunkIndex: number;
+        distance: number;
       }>;
     } = {}
   ): Promise<RAGResult[]> {
@@ -228,7 +249,7 @@ export class RAGPipeline {
     const vectorResultsMap = new Map<number, typeof vectorResults[0]>();
     for (const vr of vectorResults) {
       const existing = vectorResultsMap.get(vr.documentId);
-      if (!existing || vr.chunkIndex < existing.chunkIndex) {
+      if (!existing || vr.distance < existing.distance) {
         vectorResultsMap.set(vr.documentId, vr);
       }
     }
@@ -282,7 +303,12 @@ export class RAGPipeline {
     const rerankInputs: RerankInput[] = results.map((r) => ({
       id: r.id,
       query,
-      document: `${r.title} ${r.content}`,
+      document: buildRerankDocument({
+        title: r.title,
+        content: r.content,
+        fullContent: r.fullContent,
+        matchedChunk: r.matchedChunk,
+      }),
     }));
 
     const reranked = await this.reranker.rerank(query, rerankInputs, results.length);
@@ -295,5 +321,26 @@ export class RAGPipeline {
         score: r.score * (rerankMap.get(r.id) || 0.5),
       }))
       .sort((a, b) => b.score - a.score);
+  }
+
+  private logDebugResults(
+    vectorResults: Awaited<ReturnType<VectorSearch['search']>>,
+    bm25Results: ReturnType<BM25Search['search']>
+  ): void {
+    console.log('[debug] vector results (top 5):');
+    for (const r of vectorResults.slice(0, 5)) {
+      console.log(
+        `  docId=${r.documentId} dist=${r.distance.toFixed(4)} chunk=${r.chunkIndex} path=${r.path}`
+      );
+    }
+
+    console.log('[debug] bm25 results (top 5):');
+    for (const r of bm25Results.slice(0, 5)) {
+      const doc = this.db
+        .query('SELECT path, title FROM documents WHERE id = ?')
+        .get(Number(r.id)) as { path: string; title: string } | null;
+      const label = doc?.title || doc?.path || r.id;
+      console.log(`  docId=${r.id} score=${r.score.toFixed(4)} label=${label}`);
+    }
   }
 }

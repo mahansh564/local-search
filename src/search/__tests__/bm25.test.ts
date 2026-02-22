@@ -46,3 +46,18 @@ test('BM25 throws error when not indexed', () => {
     bm25.search('query', 10);
   }).toThrow('BM25 not indexed');
 });
+
+test('BM25 ignores common stopwords in query', () => {
+  const bm25 = new BM25Search();
+
+  const docs = [
+    { id: '1', text: 'decide realtime' },
+    { id: '2', text: 'what did i about the' },
+  ];
+
+  bm25.indexDocuments(docs);
+
+  const results = bm25.search('what did I decide about realtime', 1);
+
+  expect(results[0]?.id).toBe('1');
+});

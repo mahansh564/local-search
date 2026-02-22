@@ -12,6 +12,7 @@ interface QueryOptions {
   mmrLambda?: string;
   expand?: boolean;
   full?: boolean;
+  debug?: boolean;
 }
 
 export async function queryCommand(query: string, options: QueryOptions) {
@@ -44,6 +45,7 @@ export async function queryCommand(query: string, options: QueryOptions) {
       enableMMR: options.mmr,
       enableQueryExpansion: options.expand,
       includeFullDocument: options.full,
+      debug: options.debug,
     });
 
     if (results.length === 0) {

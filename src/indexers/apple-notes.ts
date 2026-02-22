@@ -5,7 +5,7 @@ import path from 'path';
 import os from 'os';
 
 interface AppleNote {
-  id: number;
+  id: string | number;
   title: string;
   content: string;
   created: Date;
@@ -14,9 +14,19 @@ interface AppleNote {
 
 export class AppleNotesIndexer {
   private dbPath: string;
+  private openDatabase: (dbPath: string) => Database;
+  private appleScriptFetcher: (db?: Database) => AppleNote[];
 
-  constructor(customPath?: string) {
+  constructor(
+    customPath?: string,
+    options: {
+      openDatabase?: (dbPath: string) => Database;
+      appleScriptFetcher?: (db?: Database) => AppleNote[];
+    } = {}
+  ) {
     this.dbPath = customPath || this.findNotesDatabase();
+    this.openDatabase = options.openDatabase || ((dbPath) => new Database(dbPath, { readonly: true }));
+    this.appleScriptFetcher = options.appleScriptFetcher || ((db) => this.indexNoteStoreFormatAppleScript(db));
   }
 
   private findNotesDatabase(): string {
@@ -50,13 +60,15 @@ export class AppleNotesIndexer {
       throw new Error(`Apple Notes database not found at ${this.dbPath}`);
     }
 
-    const db = new Database(this.dbPath, { readonly: true });
+    let db: Database | null = null;
     const notes: AppleNote[] = [];
 
     try {
+      db = this.openDatabase(this.dbPath);
+
       if (this.isNoteStoreFormat(db)) {
         // Try AppleScript first for full note content, fall back to SQLite
-        const appleScriptNotes = this.indexNoteStoreFormatAppleScript(db);
+        const appleScriptNotes = this.appleScriptFetcher(db);
         if (appleScriptNotes.length > 0) {
           notes.push(...appleScriptNotes);
         } else {
@@ -74,8 +86,9 @@ export class AppleNotesIndexer {
       }
     } catch (error) {
       console.warn(`Failed to read Apple Notes: ${error}`);
+      return this.appleScriptFetcher();
     } finally {
-      db.close();
+      db?.close();
     }
 
     return notes;
@@ -99,7 +112,7 @@ export class AppleNotesIndexer {
     }
   }
 
-  private indexNoteStoreFormatAppleScript(db: Database): AppleNote[] {
+  private indexNoteStoreFormatAppleScript(db?: Database): AppleNote[] {
     console.log('  Using AppleScript to fetch full note content...');
     
     const notes: AppleNote[] = [];
@@ -157,7 +170,7 @@ export class AppleNotesIndexer {
         const parts = line.split('|');
         if (parts.length < 3) continue;
         
-        const noteId = parts[0];
+        const noteId = parts[0] || 'unknown';
         const title = parts[1] || 'Untitled';
         let content = parts.slice(2).join('|'); // Join back in case content had pipes
         
@@ -166,7 +179,7 @@ export class AppleNotesIndexer {
         
         if (content.trim() || title !== 'Untitled') {
           notes.push({
-            id: notes.length + 1,
+            id: noteId,
             title: title,
             content: content,
             created: new Date(),
@@ -180,7 +193,10 @@ export class AppleNotesIndexer {
       
     } catch (error) {
       console.warn(`  AppleScript JSON failed: ${error}, falling back to SQLite...`);
-      return this.indexNoteStoreFormatSQLite(db);
+      if (db) {
+        return this.indexNoteStoreFormatSQLite(db);
+      }
+      return [];
     }
     
     return notes;

@@ -2,7 +2,8 @@ import chalk from 'chalk';
 import { Database } from 'bun:sqlite';
 import { RAGPipeline } from '../../search/pipeline.js';
 import { OllamaClient } from '../../llm/ollama.js';
-import { buildMessages } from '../../llm/prompts.js';
+import { buildMessages, toLangChainMessages } from '../../llm/prompts.js';
+import { createChatModel, streamChat } from '../../llm/langchain-chat.js';
 import path from 'path';
 import os from 'os';
 
@@ -85,16 +86,20 @@ export async function askCommand(question: string, options: AskOptions) {
       process.exit(1);
     }
 
-    const messages = buildMessages(documents, question);
+    const messages = toLangChainMessages(buildMessages(documents, question));
+    const llm = createChatModel(options.model);
 
     if (options['no-stream']) {
-      const response = await ollama.chat(messages);
-      console.log(chalk.white(response.message.content));
+      const response = await llm.invoke(messages);
+      const content = typeof response === 'string' ? response : response.content;
+      console.log(chalk.white(content || ''));
     } else {
       process.stdout.write(chalk.white(''));
       
-      for await (const chunk of ollama.streamChat(messages)) {
-        process.stdout.write(chunk);
+      for await (const chunk of streamChat(llm, messages)) {
+        if (chunk?.content) {
+          process.stdout.write(chunk.content);
+        }
       }
       process.stdout.write('\n');
     }

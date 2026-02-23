@@ -11,6 +11,9 @@ export interface TextChunk {
   text: string;
   tokens: number;
   index: number;
+  sectionTitle?: string;
+  startOffset?: number;
+  endOffset?: number;
 }
 
 const COMMON_SYNONYMS: Record<string, string[]> = {
@@ -71,32 +74,37 @@ export class EmbeddingGenerator {
   }
 
   semanticChunkText(text: string): TextChunk[] {
-    const sections: string[] = [];
+    const sections: Array<{ text: string; sectionTitle?: string }> = [];
+    let currentHeader: string | undefined;
     
     const markdownHeaders = text.split(/(?=^#{1,6}\s)/m);
     for (const section of markdownHeaders) {
       if (section.trim().startsWith('#')) {
-        sections.push(section);
+        const headerLine = section.split('\n')[0] || '';
+        const headerTitle = headerLine.replace(/^#{1,6}\s+/, '').trim();
+        if (headerTitle) currentHeader = headerTitle;
+        sections.push({ text: section, sectionTitle: currentHeader });
         continue;
       }
       
       const paragraphs = section.split(/\n\n+/);
       for (const para of paragraphs) {
-        if (para.trim()) sections.push(para);
+        if (para.trim()) sections.push({ text: para, sectionTitle: currentHeader });
       }
     }
 
     if (sections.length === 0) {
-      sections.push(text);
+      sections.push({ text, sectionTitle: currentHeader });
     }
 
     const chunks: TextChunk[] = [];
     let currentChunk = '';
     let currentTokens = 0;
     let chunkIndex = 0;
+    let currentChunkTitle: string | undefined;
 
     for (const section of sections) {
-      const sectionTokens = this.encoder.encode(section).length;
+      const sectionTokens = this.encoder.encode(section.text).length;
       
       if (sectionTokens > this.maxTokens * 1.5) {
         if (currentChunk) {
@@ -104,17 +112,20 @@ export class EmbeddingGenerator {
             text: currentChunk.trim(),
             tokens: currentTokens,
             index: chunkIndex++,
+            sectionTitle: currentChunkTitle,
           });
           currentChunk = '';
           currentTokens = 0;
+          currentChunkTitle = undefined;
         }
-
-        const subSections = this.splitLargeSection(section);
+        
+        const subSections = this.splitLargeSection(section.text);
         for (const sub of subSections) {
           chunks.push({
             text: sub.text,
             tokens: sub.tokens,
             index: chunkIndex++,
+            sectionTitle: section.sectionTitle,
           });
         }
         continue;
@@ -125,13 +136,18 @@ export class EmbeddingGenerator {
           text: currentChunk.trim(),
           tokens: currentTokens,
           index: chunkIndex++,
+          sectionTitle: currentChunkTitle,
         });
         
         const overlapTokens = this.encoder.encode(currentChunk).slice(-this.overlap);
-        currentChunk = this.encoder.decode(overlapTokens) + ' ' + section;
+        currentChunk = this.encoder.decode(overlapTokens) + ' ' + section.text;
         currentTokens = this.encoder.encode(currentChunk).length;
+        currentChunkTitle = section.sectionTitle ?? currentChunkTitle;
       } else {
-        currentChunk += (currentChunk ? '\n\n' : '') + section;
+        if (!currentChunk) {
+          currentChunkTitle = section.sectionTitle;
+        }
+        currentChunk += (currentChunk ? '\n\n' : '') + section.text;
         currentTokens += sectionTokens;
       }
     }
@@ -141,8 +157,11 @@ export class EmbeddingGenerator {
         text: currentChunk.trim(),
         tokens: currentTokens,
         index: chunkIndex,
+        sectionTitle: currentChunkTitle,
       });
     }
+
+    this.assignOffsets(text, chunks);
 
     return chunks;
   }
@@ -180,6 +199,21 @@ export class EmbeddingGenerator {
     }
 
     return chunks;
+  }
+
+  private assignOffsets(text: string, chunks: TextChunk[]): void {
+    let searchStart = 0;
+
+    for (const chunk of chunks) {
+      const idx = text.indexOf(chunk.text, searchStart);
+      const start = idx >= 0 ? idx : searchStart;
+      const end = start + chunk.text.length;
+
+      chunk.startOffset = start;
+      chunk.endOffset = end;
+
+      searchStart = Math.max(start + 1, end - 1);
+    }
   }
 
   async generateChunkEmbeddings(text: string): Promise<Array<{ chunk: TextChunk; embedding: number[] }>> {

@@ -11,6 +11,9 @@ export interface VectorSearchResult {
   content: string;
   distance: number;
   chunkIndex: number;
+  startOffset?: number;
+  endOffset?: number;
+  sectionTitle?: string;
 }
 
 export interface ChunkRecord {
@@ -19,6 +22,9 @@ export interface ChunkRecord {
   chunk_index: number;
   content: string;
   embedding: Float32Array;
+  start_offset?: number;
+  end_offset?: number;
+  section_title?: string;
 }
 
 /**
@@ -109,12 +115,20 @@ function cosineSimilarity(a: number[], b: number[]): number {
 
 export class VectorSearch {
   private db: Database;
-  private embedder: EmbeddingGenerator;
+  private embedder: {
+    initialize: () => Promise<void>;
+    generateChunkEmbeddings: (
+      text: string
+    ) => Promise<Array<{ chunk: { text: string; index: number; startOffset?: number; endOffset?: number; sectionTitle?: string }; embedding: number[] }>>;
+  };
   private tableName = 'document_chunks_vec';
 
-  constructor(db: Database) {
+  constructor(
+    db: Database,
+    options: { embedder?: EmbeddingGenerator } = {}
+  ) {
     this.db = db;
-    this.embedder = new EmbeddingGenerator();
+    this.embedder = options.embedder || new EmbeddingGenerator();
     this.initialize();
   }
 
@@ -133,10 +147,23 @@ export class VectorSearch {
         document_id INTEGER NOT NULL,
         chunk_index INTEGER NOT NULL,
         content TEXT NOT NULL,
+        start_offset INTEGER,
+        end_offset INTEGER,
+        section_title TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (document_id) REFERENCES documents(id)
       )
     `);
+
+    try {
+      this.db.run(`ALTER TABLE document_chunks ADD COLUMN start_offset INTEGER`);
+    } catch {}
+    try {
+      this.db.run(`ALTER TABLE document_chunks ADD COLUMN end_offset INTEGER`);
+    } catch {}
+    try {
+      this.db.run(`ALTER TABLE document_chunks ADD COLUMN section_title TEXT`);
+    } catch {}
 
     this.db.run(`
       CREATE INDEX IF NOT EXISTS idx_chunks_document 
@@ -161,8 +188,15 @@ export class VectorSearch {
 
     for (const { chunk, embedding } of chunkEmbeddings) {
       const result = this.db.run(
-        `INSERT INTO document_chunks (document_id, chunk_index, content) VALUES (?, ?, ?)`,
-        [documentId, chunk.index, chunk.text]
+        `INSERT INTO document_chunks (document_id, chunk_index, content, start_offset, end_offset, section_title) VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          documentId,
+          chunk.index,
+          chunk.text,
+          chunk.startOffset ?? null,
+          chunk.endOffset ?? null,
+          chunk.sectionTitle ?? null,
+        ]
       );
 
       const chunkId = result.lastInsertRowid;
@@ -194,6 +228,9 @@ export class VectorSearch {
           c.document_id,
           c.chunk_index,
           c.content,
+          c.start_offset,
+          c.end_offset,
+          c.section_title,
           d.path,
           d.title,
           distance
@@ -208,6 +245,9 @@ export class VectorSearch {
         document_id: number;
         chunk_index: number;
         content: string;
+        start_offset: number | null;
+        end_offset: number | null;
+        section_title: string | null;
         path: string;
         title: string;
         distance: number;
@@ -232,6 +272,9 @@ export class VectorSearch {
           content: c.content,
           distance: c.distance,
           chunkIndex: c.chunk_index,
+          startOffset: c.start_offset ?? undefined,
+          endOffset: c.end_offset ?? undefined,
+          sectionTitle: c.section_title ?? undefined,
         })),
         limit,
         mmrLambda
@@ -245,6 +288,9 @@ export class VectorSearch {
         content: r.content as string,
         distance: r.distance as number,
         chunkIndex: r.chunkIndex as number,
+        startOffset: r.startOffset as number | undefined,
+        endOffset: r.endOffset as number | undefined,
+        sectionTitle: r.sectionTitle as string | undefined,
       }));
     }
 
@@ -256,6 +302,9 @@ export class VectorSearch {
       content: r.content,
       distance: r.distance,
       chunkIndex: r.chunk_index,
+      startOffset: r.start_offset ?? undefined,
+      endOffset: r.end_offset ?? undefined,
+      sectionTitle: r.section_title ?? undefined,
     }));
   }
 

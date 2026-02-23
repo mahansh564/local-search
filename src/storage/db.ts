@@ -120,7 +120,13 @@ export class DatabaseManager {
     };
   }
 
-  insertDocument(doc: { path: string; title: string; content: string; hash: string }): number {
+  insertDocument(doc: {
+    path: string;
+    title: string;
+    content: string;
+    hash: string;
+    metadata?: Record<string, any>;
+  }): { id: number; updated: boolean } {
     const now = new Date().toISOString();
 
     this.db.run(
@@ -130,14 +136,30 @@ export class DatabaseManager {
 
     const existing = this.db
       .query(
-        'SELECT id FROM documents WHERE path = ? ORDER BY indexed_at DESC, id DESC LIMIT 1'
+        'SELECT id, hash FROM documents WHERE path = ? ORDER BY indexed_at DESC, id DESC LIMIT 1'
       )
-      .get(doc.path) as { id: number } | null;
+      .get(doc.path) as { id: number; hash: string } | null;
 
     if (existing?.id) {
+      if (existing.hash === doc.hash) {
+        if (doc.metadata) {
+          this.db.run(
+            'UPDATE documents SET title = ?, metadata = ?, indexed_at = ? WHERE id = ?',
+            [doc.title, JSON.stringify(doc.metadata), now, existing.id]
+          );
+        }
+        return { id: existing.id, updated: false };
+      }
+
       this.db.run(
-        'UPDATE documents SET title = ?, hash = ?, indexed_at = ? WHERE id = ?',
-        [doc.title, doc.hash, now, existing.id]
+        'UPDATE documents SET title = ?, hash = ?, metadata = ?, indexed_at = ? WHERE id = ?',
+        [
+          doc.title,
+          doc.hash,
+          doc.metadata ? JSON.stringify(doc.metadata) : null,
+          now,
+          existing.id,
+        ]
       );
 
       this.db.run('DELETE FROM documents_fts WHERE rowid = ?', [existing.id]);
@@ -146,12 +168,12 @@ export class DatabaseManager {
         [existing.id, doc.path, doc.title, doc.content]
       );
 
-      return existing.id;
+      return { id: existing.id, updated: true };
     }
 
     const result = this.db.run(
-      'INSERT INTO documents (path, title, hash, indexed_at) VALUES (?, ?, ?, ?)',
-      [doc.path, doc.title, doc.hash, now]
+      'INSERT INTO documents (path, title, hash, metadata, indexed_at) VALUES (?, ?, ?, ?, ?)',
+      [doc.path, doc.title, doc.hash, doc.metadata ? JSON.stringify(doc.metadata) : null, now]
     );
 
     const docId = result.lastInsertRowid;
@@ -161,7 +183,7 @@ export class DatabaseManager {
       [docId, doc.path, doc.title, doc.content]
     );
 
-    return Number(docId);
+    return { id: Number(docId), updated: true };
   }
 
   dedupeDocumentsByPath(): number {
@@ -185,6 +207,52 @@ export class DatabaseManager {
     this.db.run(`DELETE FROM documents WHERE id IN (${placeholders})`, ids);
     this.db.run(`DELETE FROM documents_fts WHERE rowid IN (${placeholders})`, ids);
     this.db.run(`DELETE FROM document_chunks WHERE document_id IN (${placeholders})`, ids);
+
+    return ids.length;
+  }
+
+  canonicalizeAppleNotesPaths(): number {
+    const toRemove = this.db
+      .query(`
+        SELECT d.id
+        FROM documents d
+        JOIN documents c
+          ON c.hash = d.hash
+          AND c.title = d.title
+          AND c.path LIKE 'apple-notes://x-coredata://%'
+        WHERE d.path GLOB 'apple-notes://[0-9]*'
+      `)
+      .all() as Array<{ id: number }>;
+
+    if (toRemove.length === 0) return 0;
+
+    const ids = toRemove.map((row) => row.id);
+    const placeholders = ids.map(() => '?').join(',');
+
+    try {
+      const chunkIds = this.db
+        .query(
+          `SELECT id FROM document_chunks WHERE document_id IN (${placeholders})`
+        )
+        .all(...ids) as Array<{ id: number }>;
+
+      if (chunkIds.length > 0) {
+        const chunkPlaceholders = chunkIds.map(() => '?').join(',');
+        const chunkValues = chunkIds.map((row) => row.id);
+        try {
+          this.db.run(
+            `DELETE FROM document_chunks_vec WHERE rowid IN (${chunkPlaceholders})`,
+            chunkValues
+          );
+        } catch {}
+      }
+    } catch {}
+
+    this.db.run(`DELETE FROM documents WHERE id IN (${placeholders})`, ids);
+    this.db.run(`DELETE FROM documents_fts WHERE rowid IN (${placeholders})`, ids);
+    try {
+      this.db.run(`DELETE FROM document_chunks WHERE document_id IN (${placeholders})`, ids);
+    } catch {}
 
     return ids.length;
   }

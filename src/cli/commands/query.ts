@@ -4,7 +4,7 @@ import { RAGPipeline } from '../../search/pipeline.js';
 import path from 'path';
 import os from 'os';
 
-interface QueryOptions {
+export interface QueryOptions {
   limit: string;
   filter?: string;
   rerank?: string;
@@ -13,6 +13,61 @@ interface QueryOptions {
   expand?: boolean;
   full?: boolean;
   debug?: boolean;
+}
+
+export function formatResultOutput(
+  result: {
+    title?: string;
+    path: string;
+    score: number;
+    content: string;
+    fullContent?: string;
+    matchedChunk?: string;
+    bm25Score?: number;
+    vectorScore?: number;
+    rerankScore?: number;
+    chunkMetadata?: {
+      startOffset?: number;
+      endOffset?: number;
+      sectionTitle?: string;
+    };
+  },
+  options: { full?: boolean }
+): string {
+  const lines: string[] = [];
+
+  lines.push(chalk.bold(result.title || path.basename(result.path)));
+  lines.push(chalk.gray(`  Path: ${result.path}`));
+  lines.push(chalk.gray(`  Final Score: ${result.score.toFixed(4)}`));
+
+  if (result.bm25Score) {
+    lines.push(chalk.gray(`  - BM25 Score: ${result.bm25Score.toFixed(4)}`));
+  }
+  if (result.vectorScore) {
+    lines.push(chalk.gray(`  - Vector Distance: ${result.vectorScore.toFixed(4)}`));
+  }
+  if (result.rerankScore) {
+    lines.push(chalk.gray(`  - Rerank Score: ${result.rerankScore.toFixed(4)}`));
+  }
+
+  if (result.chunkMetadata?.startOffset !== undefined && result.chunkMetadata?.endOffset !== undefined) {
+    lines.push(
+      chalk.gray(`  - Chunk: ${result.chunkMetadata.startOffset}-${result.chunkMetadata.endOffset}`)
+    );
+  }
+  if (result.chunkMetadata?.sectionTitle) {
+    lines.push(chalk.gray(`  - Section: ${result.chunkMetadata.sectionTitle}`));
+  }
+
+  if (options.full && result.fullContent) {
+    lines.push(chalk.gray(`  Content: ${result.fullContent.substring(0, 300)}...`));
+  } else if (result.matchedChunk) {
+    lines.push(chalk.gray(`  Matched Chunk: ${result.matchedChunk.substring(0, 150)}...`));
+  } else {
+    lines.push(chalk.gray(`  Content: ${result.content.substring(0, 150)}...`));
+  }
+
+  return lines.join('\n');
 }
 
 export async function queryCommand(query: string, options: QueryOptions) {
@@ -56,27 +111,7 @@ export async function queryCommand(query: string, options: QueryOptions) {
     console.log(chalk.green(`Found ${results.length} results:\n`));
 
     for (const result of results) {
-      console.log(chalk.bold(result.title || path.basename(result.path)));
-      console.log(chalk.gray(`  Path: ${result.path}`));
-      console.log(chalk.gray(`  Final Score: ${result.score.toFixed(4)}`));
-
-      if (result.bm25Score) {
-        console.log(chalk.gray(`  - BM25 Score: ${result.bm25Score.toFixed(4)}`));
-      }
-      if (result.vectorScore) {
-        console.log(chalk.gray(`  - Vector Distance: ${result.vectorScore.toFixed(4)}`));
-      }
-      if (result.rerankScore) {
-        console.log(chalk.gray(`  - Rerank Score: ${result.rerankScore.toFixed(4)}`));
-      }
-
-      if (options.full && result.fullContent) {
-        console.log(chalk.gray(`  Content: ${result.fullContent.substring(0, 300)}...`));
-      } else if (result.matchedChunk) {
-        console.log(chalk.gray(`  Matched Chunk: ${result.matchedChunk.substring(0, 150)}...`));
-      } else {
-        console.log(chalk.gray(`  Content: ${result.content.substring(0, 150)}...`));
-      }
+      console.log(formatResultOutput(result, { full: options.full }));
       console.log();
     }
   } catch (error) {

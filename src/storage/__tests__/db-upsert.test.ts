@@ -17,21 +17,25 @@ test('insertDocument upserts by path and updates FTS', () => {
   const dbManager = new DatabaseManager(dbPath);
   dbManager.init();
 
-  const firstId = dbManager.insertDocument({
+  const first = dbManager.insertDocument({
     path: 'apple-notes://1',
     title: 'TODO',
     content: 'first content',
     hash: sha256('first content'),
+    metadata: { links: [], headings: [] },
   });
 
-  const secondId = dbManager.insertDocument({
+  const second = dbManager.insertDocument({
     path: 'apple-notes://1',
     title: 'TODO',
     content: 'second content with realtime',
     hash: sha256('second content with realtime'),
+    metadata: { links: ['https://example.com'], headings: ['TODO'] },
   });
 
-  expect(secondId).toBe(firstId);
+  expect(second.id).toBe(first.id);
+  expect(first.updated).toBe(true);
+  expect(second.updated).toBe(true);
 
   const db = new Database(dbPath);
   const countRow = db
@@ -41,8 +45,41 @@ test('insertDocument upserts by path and updates FTS', () => {
 
   const ftsRow = db
     .query('SELECT body FROM documents_fts WHERE rowid = ?')
-    .get(firstId) as { body: string };
+    .get(first.id) as { body: string };
   expect(ftsRow.body).toContain('realtime');
 
+  const metadataRow = db
+    .query('SELECT metadata FROM documents WHERE id = ?')
+    .get(first.id) as { metadata: string };
+  expect(JSON.parse(metadataRow.metadata).links).toEqual(['https://example.com']);
+
   db.close();
+});
+
+test('insertDocument skips update when hash unchanged', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'search-cli-db-'));
+  const dbPath = path.join(tmpDir, 'index.sqlite');
+
+  const dbManager = new DatabaseManager(dbPath);
+  dbManager.init();
+
+  const hash = sha256('same content');
+  const first = dbManager.insertDocument({
+    path: 'apple-notes://2',
+    title: 'TODO',
+    content: 'same content',
+    hash,
+    metadata: { links: [], headings: [] },
+  });
+
+  const second = dbManager.insertDocument({
+    path: 'apple-notes://2',
+    title: 'TODO',
+    content: 'same content',
+    hash,
+    metadata: { links: [], headings: [] },
+  });
+
+  expect(second.id).toBe(first.id);
+  expect(second.updated).toBe(false);
 });

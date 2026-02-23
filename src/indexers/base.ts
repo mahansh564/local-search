@@ -5,6 +5,7 @@ import { EmailIndexer } from './email.js';
 import { AppleNotesIndexer } from './apple-notes.js';
 import { Database } from 'bun:sqlite';
 import { globby } from 'globby';
+import { buildDocumentMetadata, normalizeContent } from './content-utils.js';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
@@ -68,18 +69,21 @@ export class Indexer {
 
     for (const note of notes) {
       try {
-        const content = `${note.title}\n\n${note.content}`;
-        const hash = crypto.createHash('sha256').update(content).digest('hex');
+        const rawContent = `${note.title}\n\n${note.content}`;
+        const normalized = normalizeContent(rawContent);
+        const hash = crypto.createHash('sha256').update(normalized).digest('hex');
+        const metadata = buildDocumentMetadata('apple-notes', normalized);
 
-        const docId = this.db.insertDocument({
+        const result = this.db.insertDocument({
           path: `apple-notes://${note.id}`,
           title: note.title,
-          content: content,
+          content: normalized,
           hash,
+          metadata,
         });
 
-        if (this.vectorSearch.isAvailable()) {
-          await this.vectorSearch.indexDocument(docId, content);
+        if (result.updated && this.vectorSearch.isAvailable()) {
+          await this.vectorSearch.indexDocument(result.id, normalized);
         }
       } catch (error) {
         console.warn(`  Failed to index note ${note.id}: ${error}`);
@@ -111,18 +115,21 @@ export class Indexer {
 
     for (const email of emails) {
       try {
-        const content = `${email.subject}\n\nFrom: ${email.from}\nTo: ${email.to.join(', ')}\nDate: ${email.date.toISOString()}\n\n${email.content}`;
-        const hash = crypto.createHash('sha256').update(content).digest('hex');
+        const rawContent = `${email.subject}\n\nFrom: ${email.from}\nTo: ${email.to.join(', ')}\nDate: ${email.date.toISOString()}\n\n${email.content}`;
+        const normalized = normalizeContent(rawContent);
+        const hash = crypto.createHash('sha256').update(normalized).digest('hex');
+        const metadata = buildDocumentMetadata('email', normalized);
 
-        const docId = this.db.insertDocument({
+        const result = this.db.insertDocument({
           path: email.path,
           title: email.subject,
-          content,
+          content: normalized,
           hash,
+          metadata,
         });
 
-        if (this.vectorSearch.isAvailable()) {
-          await this.vectorSearch.indexDocument(docId, content);
+        if (result.updated && this.vectorSearch.isAvailable()) {
+          await this.vectorSearch.indexDocument(result.id, normalized);
         }
       } catch (error) {
         console.warn(`Failed to index email ${email.messageId}: ${error}`);
@@ -151,20 +158,23 @@ export class Indexer {
   }
 
   private async indexFile(filePath: string, collection: Collection): Promise<void> {
-    const content = fs.readFileSync(filePath, 'utf-8');
-    const hash = crypto.createHash('sha256').update(content).digest('hex');
+    const rawContent = fs.readFileSync(filePath, 'utf-8');
+    const normalized = normalizeContent(rawContent);
+    const hash = crypto.createHash('sha256').update(normalized).digest('hex');
+    const metadata = buildDocumentMetadata('files', normalized);
 
-    const title = this.extractTitle(content, filePath);
+    const title = this.extractTitle(normalized, filePath);
 
-    const docId = this.db.insertDocument({
+    const result = this.db.insertDocument({
       path: filePath,
       title,
-      content,
+      content: normalized,
       hash,
+      metadata,
     });
 
-    if (this.vectorSearch.isAvailable()) {
-      await this.vectorSearch.indexDocument(docId, content);
+    if (result.updated && this.vectorSearch.isAvailable()) {
+      await this.vectorSearch.indexDocument(result.id, normalized);
     }
   }
 

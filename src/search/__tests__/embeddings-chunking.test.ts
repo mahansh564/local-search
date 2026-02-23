@@ -17,3 +17,16 @@ test('splits oversized sections into token windows without recursion', () => {
     expect(tokenCount).toBeLessThanOrEqual(20);
   }
 });
+
+test('semanticChunkText assigns offsets and section titles', () => {
+  const generator = new EmbeddingGenerator({ maxTokens: 50, overlap: 5 });
+  const text = '# Title\n\nFirst paragraph.\n\n## Next\n\nSecond paragraph.';
+
+  const chunks = generator.semanticChunkText(text);
+
+  expect(chunks[0]?.sectionTitle).toBe('Title');
+  for (const chunk of chunks) {
+    expect(chunk.startOffset).toBeGreaterThanOrEqual(0);
+    expect(chunk.endOffset).toBeGreaterThan(chunk.startOffset);
+  }
+});

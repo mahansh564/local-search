@@ -34,6 +34,14 @@ export async function indexCommand(options: IndexOptions) {
   if (removed > 0) {
     console.log(chalk.yellow(`Removed ${removed} duplicate document rows by path.`));
   }
+  const canonicalized = dbManager.canonicalizeAppleNotesPaths();
+  if (canonicalized > 0) {
+    console.log(
+      chalk.yellow(
+        `Removed ${canonicalized} legacy Apple Notes numeric path entries.`
+      )
+    );
+  }
   const indexer = new Indexer(dbPath);
   
   for (const collection of targetCollections) {

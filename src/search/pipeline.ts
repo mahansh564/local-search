@@ -8,7 +8,14 @@ import {
   ScoreNormalizer,
   type RerankInput,
 } from './reranking.js';
-import { MetadataQueryBuilder, type FilterGroup } from './filters.js';
+import { MetadataQueryBuilder, type FilterGroup, type MetadataFilter } from './filters.js';
+import {
+  parseQueryWithLLM,
+  buildBm25Query,
+  buildSourceFilter,
+  mergeFilters,
+  type QueryParseResult,
+} from '../llm/query-parser.js';
 
 export interface RAGConfig {
   vectorWeight?: number;
@@ -18,6 +25,8 @@ export interface RAGConfig {
   enableMMR?: boolean;
   mmrLambda?: number;
   enableQueryExpansion?: boolean;
+  enableQueryParsing?: boolean;
+  queryParserModel?: string;
 }
 
 export interface RAGResult {
@@ -28,6 +37,11 @@ export interface RAGResult {
   content: string;
   fullContent?: string;
   matchedChunk?: string;
+  chunkMetadata?: {
+    startOffset?: number;
+    endOffset?: number;
+    sectionTitle?: string;
+  };
   score: number;
   vectorScore?: number;
   bm25Score?: number;
@@ -38,12 +52,13 @@ export interface RAGResult {
 
 export interface RAGQueryOptions {
   limit?: number;
-  filter?: FilterGroup;
+  filter?: FilterGroup | MetadataFilter;
   enableReranking?: boolean;
   enableMMR?: boolean;
   includeFullDocument?: boolean;
   enableQueryExpansion?: boolean;
   debug?: boolean;
+  enableQueryParsing?: boolean;
 }
 
 export function distanceToScore(distance: number): number {
@@ -79,6 +94,7 @@ export class RAGPipeline {
       enableMMR: false,
       mmrLambda: 0.5,
       enableQueryExpansion: false,
+      enableQueryParsing: true,
       ...config,
     };
 
@@ -119,9 +135,13 @@ export class RAGPipeline {
     const mmrLambda = this.config.mmrLambda ?? 0.5;
     const includeFullDocument = options.includeFullDocument ?? false;
     const enableQueryExpansion = options.enableQueryExpansion ?? this.config.enableQueryExpansion ?? false;
+    const enableQueryParsing = options.enableQueryParsing ?? this.config.enableQueryParsing ?? false;
     const fetchMultiplier = enableMMR ? 5 : 3;
 
     let searchQuery = query;
+    let bm25Query = query;
+    let mergedFilter = options.filter;
+    let parsedQuery: QueryParseResult | null = null;
     let queryVariations: string[] = [query];
 
     if (enableQueryExpansion) {
@@ -130,18 +150,38 @@ export class RAGPipeline {
       queryVariations = expanded.queryVariations;
     }
 
+    if (enableQueryParsing) {
+      parsedQuery = await parseQueryWithLLM(query, {
+        model: this.config.queryParserModel,
+      });
+      bm25Query = buildBm25Query(query, parsedQuery);
+
+      if (parsedQuery.sources.length > 0 && parsedQuery.confidence.sources >= 0.5) {
+        const sourceFilter = buildSourceFilter(parsedQuery.sources);
+        mergedFilter = mergeFilters(mergedFilter, sourceFilter);
+      }
+    }
+
     const [vectorResults, bm25Results] = await Promise.all([
       this.vectorSearch.search(searchQuery, limit * fetchMultiplier, { useMMR: enableMMR, mmrLambda }),
-      Promise.resolve(this.bm25.search(query, limit * fetchMultiplier)),
+      Promise.resolve(this.bm25.search(bm25Query, limit * fetchMultiplier)),
     ]);
 
     if (options.debug) {
-      this.logDebugResults(vectorResults, bm25Results);
+      this.logDebugResults(vectorResults, bm25Results, parsedQuery);
     }
 
     let filteredVectorResults = vectorResults;
-    if (options.filter) {
-      filteredVectorResults = await this.filterVectorResults(vectorResults, options.filter);
+    let filteredBm25Results = bm25Results;
+    if (mergedFilter) {
+      const allowedIds = this.filterDocumentIdsByMetadata(
+        [...new Set(vectorResults.map((r) => r.documentId))],
+        mergedFilter
+      );
+      filteredVectorResults = vectorResults.filter((r) => allowedIds.has(r.documentId));
+      filteredBm25Results = bm25Results.filter((r) =>
+        allowedIds.has(Number(r.id))
+      );
     }
 
     const deduplicatedVectorResults = this.deduplicateByDocumentId(filteredVectorResults);
@@ -156,7 +196,7 @@ export class RAGPipeline {
     );
 
     const bm25Ranked = ScoreNormalizer.rankNormalize(
-      bm25Results.map((r, i) => ({
+      filteredBm25Results.map((r, i) => ({
         id: r.id,
         score: r.score,
         rank: i,
@@ -209,17 +249,18 @@ export class RAGPipeline {
     return Array.from(bestByPath.values());
   }
 
-  private async filterVectorResults(
-    results: Awaited<ReturnType<VectorSearch['search']>>,
-    filter: FilterGroup
-  ): Promise<typeof results> {
-    if (!filter.filters.length) return results;
+  private filterDocumentIdsByMetadata(
+    docIds: number[],
+    filter: FilterGroup | MetadataFilter
+  ): Set<number> {
+    if (!filter.filters.length) return new Set(docIds);
+    if (docIds.length === 0) return new Set();
 
-    const docIds = results.map((r) => r.documentId);
-    if (docIds.length === 0) return [];
-
-    const { clause, params } = this.queryBuilder.buildWhereClause(filter);
-    if (!clause) return results;
+    const { clause, params } = this.queryBuilder.buildWhereClauseForDocIds(
+      filter,
+      docIds.length
+    );
+    if (!clause) return new Set(docIds);
 
     const placeholders = docIds.map(() => '?').join(',');
     const query = `
@@ -228,9 +269,7 @@ export class RAGPipeline {
     `;
 
     const filtered = this.db.query(query).all(...docIds, ...params) as Array<{ id: number }>;
-    const allowedIds = new Set(filtered.map((r) => r.id));
-
-    return results.filter((r) => allowedIds.has(r.documentId));
+    return new Set(filtered.map((r) => r.id));
   }
 
   private async fetchDocuments(
@@ -242,6 +281,9 @@ export class RAGPipeline {
         content: string;
         chunkIndex: number;
         distance: number;
+        startOffset?: number;
+        endOffset?: number;
+        sectionTitle?: string;
       }>;
     } = {}
   ): Promise<RAGResult[]> {
@@ -279,6 +321,7 @@ export class RAGPipeline {
       const vectorSource = item.sources.find((s) => s.source === 'vector');
       const bm25Source = item.sources.find((s) => s.source === 'bm25');
       const matchedChunk = vectorResultsMap.get(docId)?.content;
+      const chunkMeta = vectorResultsMap.get(docId);
 
       results.push({
         id: item.id,
@@ -288,6 +331,13 @@ export class RAGPipeline {
         content: includeFullDocument ? doc.content : doc.content.substring(0, 500),
         fullContent: includeFullDocument ? doc.content : undefined,
         matchedChunk: matchedChunk ? matchedChunk.substring(0, 500) : undefined,
+        chunkMetadata: chunkMeta
+          ? {
+              startOffset: chunkMeta.startOffset,
+              endOffset: chunkMeta.endOffset,
+              sectionTitle: chunkMeta.sectionTitle,
+            }
+          : undefined,
         score: item.score,
         vectorScore: vectorSource?.originalScore,
         bm25Score: bm25Source?.originalScore,
@@ -325,8 +375,18 @@ export class RAGPipeline {
 
   private logDebugResults(
     vectorResults: Awaited<ReturnType<VectorSearch['search']>>,
-    bm25Results: ReturnType<BM25Search['search']>
+    bm25Results: ReturnType<BM25Search['search']>,
+    parsedQuery?: QueryParseResult | null
   ): void {
+    if (parsedQuery) {
+      console.log('[debug] parsed query:');
+      console.log(
+        `  keywords=${parsedQuery.keywords.join(', ') || '(none)'} ` +
+          `sources=${parsedQuery.sources.join(', ') || '(none)'} ` +
+          `confidence=(${parsedQuery.confidence.keywords},${parsedQuery.confidence.sources})`
+      );
+    }
+
     console.log('[debug] vector results (top 5):');
     for (const r of vectorResults.slice(0, 5)) {
       console.log(

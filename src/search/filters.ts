@@ -25,6 +25,13 @@ export class MetadataQueryBuilder {
     return this.buildSingleClause(filter as MetadataFilter, paramOffset);
   }
 
+  buildWhereClauseForDocIds(
+    filter: MetadataFilter | FilterGroup | undefined,
+    docIdCount: number
+  ): { clause: string; params: any[]; paramCount: number } {
+    return this.buildWhereClause(filter, docIdCount);
+  }
+
   private buildGroupClause(
     group: FilterGroup,
     paramOffset: number

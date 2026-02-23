@@ -65,3 +65,15 @@ Answer:`
     }
   ];
 }
+
+export function toLangChainMessages(
+  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
+) {
+  const { SystemMessage, HumanMessage, AIMessage } = require('@langchain/core/messages');
+
+  return messages.map((message) => {
+    if (message.role === 'system') return new SystemMessage(message.content);
+    if (message.role === 'assistant') return new AIMessage(message.content);
+    return new HumanMessage(message.content);
+  });
+}

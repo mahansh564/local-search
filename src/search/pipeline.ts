@@ -107,7 +107,10 @@ export class RAGPipeline {
   }
 
   async initialize(): Promise<void> {
-    await this.reranker.initialize();
+    // Only initialize reranker if enabled (avoids loading ML model unnecessarily)
+    if (this.config.enableReranking) {
+      await this.reranker.initialize();
+    }
     this.indexBM25();
   }
 

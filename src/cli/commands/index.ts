@@ -22,8 +22,8 @@ export async function indexCommand(options: IndexOptions) {
   
   if (targetCollections.length === 0) {
     console.log(chalk.yellow(options.collection 
-      ? `Collection "${options.collection}" not found.` 
-      : 'No collections configured.'));
+      ? `Collection '${options.collection}' not found. Run 'search-cli list' to see available collections.` 
+      : 'No collections configured. Run \'search-cli list\' to see available collections.'));
     return;
   }
   

@@ -25,7 +25,7 @@ export async function vsearchCommand(query: string, options: VSearchOptions) {
     const results = await vectorSearch.search(query, parseInt(options.limit));
 
     if (results.length === 0) {
-      console.log(chalk.yellow('No results found.'));
+      console.log(chalk.yellow(`No results for '${query}'. Try different keywords or run 'search-cli index' to rebuild.`));
       return;
     }
 

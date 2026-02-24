@@ -36,7 +36,7 @@ export async function askCommand(question: string, options: AskOptions) {
   
   const db = new Database(dbPath);
   const pipeline = new RAGPipeline(db, {
-    enableReranking: true,
+    enableReranking: false, // Disabled: cross-encoder reranker not producing correct relevance scores
     enableMMR: false,
     mmrLambda: 0.5,
     enableQueryExpansion: false,

@@ -175,7 +175,7 @@ export async function interactiveCommand() {
 
   const fs = await import("fs");
   if (!fs.existsSync(dbPath)) {
-    console.log("Database not found. Run 'search-cli init' first.");
+    console.log("Database not initialized. Run 'search-cli init' first.");
     process.exit(1);
   }
 
@@ -423,7 +423,7 @@ export async function interactiveCommand() {
       const ollama = new OllamaClient({});
       const isConnected = await ollama.checkConnection();
       if (!isConnected) {
-        entry.error = "Cannot connect to Ollama. Please ensure it is running.";
+        entry.error = 'Cannot connect to Ollama. Is it running? (ollama serve)';
         state.status = "";
         state.isBusy = false;
         render();

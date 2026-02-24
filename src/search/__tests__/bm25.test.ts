@@ -47,6 +47,13 @@ test('BM25 throws error when not indexed', () => {
   }).toThrow('BM25 not indexed');
 });
 
+test('BM25 throws when indexing empty document list', () => {
+  const bm25 = new BM25Search();
+  expect(() => {
+    bm25.indexDocuments([]);
+  }).toThrow('Cannot index empty document list');
+});
+
 test('BM25 ignores common stopwords in query', () => {
   const bm25 = new BM25Search();
 

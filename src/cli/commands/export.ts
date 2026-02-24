@@ -23,7 +23,7 @@ export async function exportCommand(query: string, options: ExportOptions) {
     const results = await pipeline.search(query, { limit: 100 });
 
     if (results.length === 0) {
-      console.log(chalk.yellow('No results found to export.'));
+      console.log(chalk.yellow(`No results for '${query}'. Try different keywords or run 'search-cli index' to rebuild.`));
       return;
     }
 

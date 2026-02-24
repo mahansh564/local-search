@@ -5,6 +5,7 @@ export interface EmbeddingConfig {
   model?: string;
   maxTokens?: number;
   overlap?: number;
+  batchSize?: number;
 }
 
 export interface TextChunk {
@@ -40,11 +41,13 @@ export class EmbeddingGenerator {
   private modelName: string;
   private maxTokens: number;
   private overlap: number;
+  private batchSize: number;
 
   constructor(config: EmbeddingConfig = {}) {
     this.modelName = config.model || 'Xenova/all-MiniLM-L6-v2';
     this.maxTokens = config.maxTokens || 512;
     this.overlap = config.overlap || 50;
+    this.batchSize = config.batchSize || 32;
     this.encoder = encodingForModel('text-embedding-ada-002');
   }
 
@@ -67,6 +70,32 @@ export class EmbeddingGenerator {
     });
 
     return Array.from(output.data);
+  }
+
+  async generateBatchEmbeddings(texts: string[]): Promise<number[][]> {
+    if (!this.embedder) {
+      await this.initialize();
+    }
+
+    const results: number[][] = [];
+    
+    for (let i = 0; i < texts.length; i += this.batchSize) {
+      const batch = texts.slice(i, i + this.batchSize);
+      const outputs = await Promise.all(
+        batch.map(text => 
+          this.embedder!(text, {
+            pooling: 'mean',
+            normalize: true,
+          })
+        )
+      );
+      
+      for (const output of outputs) {
+        results.push(Array.from(output.data));
+      }
+    }
+    
+    return results;
   }
 
   chunkText(text: string): TextChunk[] {
@@ -218,14 +247,9 @@ export class EmbeddingGenerator {
 
   async generateChunkEmbeddings(text: string): Promise<Array<{ chunk: TextChunk; embedding: number[] }>> {
     const chunks = this.chunkText(text);
-    const results = [];
-
-    for (const chunk of chunks) {
-      const embedding = await this.generateEmbedding(chunk.text);
-      results.push({ chunk, embedding });
-    }
-
-    return results;
+    const texts = chunks.map(c => c.text);
+    const embeddings = await this.generateBatchEmbeddings(texts);
+    return chunks.map((chunk, i) => ({ chunk, embedding: embeddings[i] }));
   }
 
   private static readonly EMBEDDING_DIMENSIONS = 384;

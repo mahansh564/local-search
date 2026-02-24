@@ -32,6 +32,6 @@ export async function statusCommand() {
     console.log(`  Database size: ${stats.dbSize}`);
     console.log(`  Last indexed: ${stats.lastIndexed || 'Never'}`);
   } catch (error) {
-    console.log(chalk.yellow('Database not initialized. Run: search-cli init'));
+    console.log(chalk.yellow("Database not initialized. Run 'search-cli init' first."));
   }
 }

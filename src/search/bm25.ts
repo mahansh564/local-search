@@ -148,6 +148,9 @@ export class BM25Search {
   }
 
   indexDocuments(docs: BM25Document[]): void {
+    if (docs.length === 0) {
+      throw new Error('Cannot index empty document list. Provide at least one document.');
+    }
     const totalDocs = docs.length;
     const docLengths = new Map<string, number>();
     const termFrequencies = new Map<string, Map<string, number>>();
@@ -184,9 +187,10 @@ export class BM25Search {
       dfMap.set(term, docs.size);
     }
 
+    const avgDocLength = totalLength / totalDocs;
     this.stats = {
       totalDocs,
-      avgDocLength: totalLength / totalDocs,
+      avgDocLength: avgDocLength > 0 ? avgDocLength : 1,
       docLengths,
       termFrequencies,
       docFrequencies: dfMap,
@@ -214,7 +218,8 @@ export class BM25Search {
 
       for (const [docId, tf] of termDocFreqs) {
         const docLength = this.stats.docLengths.get(docId) || 0;
-        const normalizedLength = docLength / this.stats.avgDocLength;
+        const avgLen = this.stats.avgDocLength || 1;
+        const normalizedLength = docLength / avgLen;
 
         const score =
           idf *

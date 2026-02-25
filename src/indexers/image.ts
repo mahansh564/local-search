@@ -81,7 +81,7 @@ export class ImageIndexer {
 
   constructor(config: VisionModelConfig = {}) {
     this.host = config.host || process.env.OLLAMA_HOST || 'http://localhost:11434';
-    this.model = config.model || process.env.OLLAMA_VISION_MODEL || 'llama3.2-vision:11b';
+    this.model = config.model || process.env.OLLAMA_VISION_MODEL || 'llama3.2-vision:latest';
     this.timeout = config.timeout || 60000; // 60 seconds default for vision models
   }
 
@@ -105,10 +105,13 @@ export class ImageIndexer {
       const data = await response.json() as { models?: Array<{ name: string }> };
       const models = data.models || [];
       
-      // Check if the vision model is available (match by name prefix)
+      // Check if the vision model is available
+      // Match exact name, or base name without tag (e.g., "llama3.2-vision" matches "llama3.2-vision:latest")
+      const modelBase = this.model.split(':')[0];
       this.available = models.some(m => 
         m.name === this.model || 
-        m.name.startsWith(this.model.split(':')[0])
+        m.name === modelBase ||
+        m.name.startsWith(modelBase + ':')
       );
       
       return this.available;
@@ -174,7 +177,6 @@ export class ImageIndexer {
     // WebP
     if (buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 &&
         buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50) {
-      // WebP dimensions are in the VP8/VP8L chunk
       const webpDimensions = this.getWebPDimensions(buffer);
       if (webpDimensions) return webpDimensions;
     }
@@ -219,7 +221,6 @@ export class ImageIndexer {
     // Check for VP8 chunk
     if (buffer.length > 28 && 
         buffer[12] === 0x56 && buffer[13] === 0x50 && buffer[14] === 0x38 && buffer[15] === 0x20) {
-      // VP8 bitstream
       const width = (buffer.readUInt16LE(26) & 0x3FFF);
       const height = (buffer.readUInt16LE(28) & 0x3FFF);
       return { width, height };
@@ -228,7 +229,6 @@ export class ImageIndexer {
     // Check for VP8L chunk (lossless)
     if (buffer.length > 22 &&
         buffer[12] === 0x56 && buffer[13] === 0x50 && buffer[14] === 0x38 && buffer[15] === 0x4C) {
-      // VP8L bitstream - dimensions are encoded differently
       const bits = buffer.readUInt32LE(21);
       const width = (bits & 0x3FFF) + 1;
       const height = ((bits >> 14) & 0x3FFF) + 1;
@@ -258,7 +258,6 @@ export class ImageIndexer {
   private detectPromptType(imagePath: string): PromptType {
     const lowerPath = imagePath.toLowerCase();
     
-    // Check for screenshots
     if (lowerPath.includes('screenshot') || 
         lowerPath.includes('capture') ||
         lowerPath.includes('screen') ||
@@ -266,7 +265,6 @@ export class ImageIndexer {
       return 'screenshot';
     }
     
-    // Check for documents
     if (lowerPath.includes('document') ||
         lowerPath.includes('doc') ||
         lowerPath.includes('scan') ||
@@ -278,7 +276,6 @@ export class ImageIndexer {
       return 'document';
     }
     
-    // Check for photos
     if (lowerPath.includes('photo') ||
         lowerPath.includes('img_') ||
         lowerPath.includes('dsc') ||
@@ -357,15 +354,11 @@ export class ImageIndexer {
    * Index a single image file
    */
   async indexImage(imagePath: string): Promise<ImageDescription> {
-    // Check if file exists
     if (!fs.existsSync(imagePath)) {
       throw new Error(`Image file not found: ${imagePath}`);
     }
 
-    // Extract metadata
     const metadata = await this.extractMetadata(imagePath);
-
-    // Generate description using vision model
     const description = await this.generateDescription(imagePath);
 
     return {

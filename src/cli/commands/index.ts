@@ -42,7 +42,12 @@ export async function indexCommand(options: IndexOptions) {
       )
     );
   }
-  const indexer = new Indexer(dbPath);
+  // Get vision model from first collection that has one (if any)
+  const visionModel = collections
+    .filter(c => c.visionModel)
+    .map(c => c.visionModel)[0];
+  
+  const indexer = new Indexer(dbPath, visionModel);
   
   for (const collection of targetCollections) {
     console.log(chalk.blue(`Indexing: ${collection.name}`));

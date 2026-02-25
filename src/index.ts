@@ -29,12 +29,13 @@ program
 
 program
   .command('add')
-  .description('Add a collection (files, email, or apple-notes)')
+  .description('Add a collection (files, email, apple-notes, or image)')
   .argument('<path>', 'Path to directory or file (use "apple-notes" for Apple Notes)')
   .option('-n, --name <name>', 'Collection name')
-  .option('-t, --type <type>', 'Collection type (files|email|apple-notes)', 'files')
+  .option('-t, --type <type>', 'Collection type (files|email|apple-notes|image)', 'files')
   .option('-g, --glob <pattern>', 'Glob pattern for file matching', '**/*')
   .option('--notes-db <path>', 'Custom path to Apple Notes database (for apple-notes type)')
+  .option('--vision-model <model>', 'Vision model for image indexing (e.g., llama3.2-vision:11b, moondream2)')
   .action(addCommand);
 
 program

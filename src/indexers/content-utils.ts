@@ -3,10 +3,18 @@ export interface ContentMetadata {
   headings: string[];
 }
 
-export interface DocumentMetadata extends ContentMetadata {
-  source: 'apple-notes' | 'files' | 'email';
+export interface ImageMetadata {
+  width: number;
+  height: number;
+  format: string;
+  sizeBytes: number;
+  description?: string;
 }
 
+export interface DocumentMetadata extends ContentMetadata {
+  source: 'apple-notes' | 'files' | 'email' | 'image';
+  imageMetadata?: ImageMetadata;
+}
 const MOJIBAKE_REPLACEMENTS: Array<[RegExp, string]> = [
   [/‚Äô/g, "'"],
   [/‚Äì/g, '-'],

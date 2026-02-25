@@ -1,4 +1,4 @@
-import { pipeline, TextClassificationPipeline } from '@xenova/transformers';
+import { AutoTokenizer, AutoModelForSequenceClassification, PreTrainedModel, PreTrainedTokenizer } from '@xenova/transformers';
 
 export interface RankedResult {
   id: string;
@@ -104,7 +104,8 @@ export interface RerankResult {
 }
 
 export class CrossEncoderReranker {
-  private model: TextClassificationPipeline | null = null;
+  private model: PreTrainedModel | null = null;
+  private tokenizer: PreTrainedTokenizer | null = null;
   private modelName: string;
 
   constructor(modelName: string = 'Xenova/ms-marco-MiniLM-L-6-v2') {
@@ -112,9 +113,14 @@ export class CrossEncoderReranker {
   }
 
   async initialize(): Promise<void> {
-    if (!this.model) {
+    if (!this.model || !this.tokenizer) {
       console.log(`Loading reranker model: ${this.modelName}...`);
-      this.model = await pipeline('text-classification', this.modelName);
+      const [model, tokenizer] = await Promise.all([
+        AutoModelForSequenceClassification.from_pretrained(this.modelName),
+        AutoTokenizer.from_pretrained(this.modelName),
+      ]);
+      this.model = model;
+      this.tokenizer = tokenizer;
       console.log('Reranker model loaded');
     }
   }
@@ -124,19 +130,44 @@ export class CrossEncoderReranker {
     documents: RerankInput[],
     topK: number = 5
   ): Promise<RerankResult[]> {
-    if (!this.model) {
+    if (!this.model || !this.tokenizer) {
       await this.initialize();
     }
 
-    const pairs = documents.map((doc) => `${query} [SEP] ${doc.document}`);
-    const outputs = await this.model!(pairs) as Array<{ score: number } | undefined>;
+    // Tokenize query-document pairs using text_pair for cross-encoder
+    const queries = documents.map(() => query);
+    const docs = documents.map((doc) => doc.document);
+
+    const features = this.tokenizer!(queries, {
+      text_pair: docs,
+      padding: true,
+      truncation: true,
+    });
+
+    // Get raw logits from the model
+    const outputs = await this.model!(features);
+    
+    // Extract logits - cross-encoder outputs raw scores
+    const logits = outputs.logits.data;
+    const numClasses = outputs.logits.dims[outputs.logits.dims.length - 1] || 1;
 
     const scored = documents.map((doc, i) => {
-      const output = outputs[i];
+      // For binary classification models, use the positive class logit as the score
+      // For regression models, the single output is the score
+      let score: number;
+      if (numClasses === 1) {
+        // Regression model - single output
+        score = logits[i] as number;
+      } else {
+        // Classification model - use the logit for the relevance class
+        // For binary classification, index 1 is typically the positive class
+        score = logits[i * numClasses + 1] as number;
+      }
+      
       return {
         id: doc.id,
         document: doc.document,
-        score: output?.score ?? 0,
+        score,
       };
     });
 

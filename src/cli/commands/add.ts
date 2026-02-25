@@ -10,6 +10,7 @@ interface AddOptions {
   type: string;
   glob: string;
   notesDb?: string;
+  visionModel?: string;
 }
 
 export async function addCommand(collectionPath: string, options: AddOptions) {
@@ -49,9 +50,10 @@ export async function addCommand(collectionPath: string, options: AddOptions) {
   await configManager.addCollection({
     name,
     path: resolvedPath,
-    type: options.type as 'files' | 'email' | 'apple-notes',
+    type: options.type as 'files' | 'email' | 'apple-notes' | 'image',
     glob: options.glob,
     notesDb: options.notesDb,
+    visionModel: options.visionModel,
   });
 
   console.log(chalk.green(`✓ Collection "${name}" added`));
@@ -59,6 +61,9 @@ export async function addCommand(collectionPath: string, options: AddOptions) {
   console.log(chalk.gray(`  Type: ${options.type}`));
   if (options.type !== 'apple-notes') {
     console.log(chalk.gray(`  Glob: ${options.glob}`));
+  }
+  if (options.type === 'image' && options.visionModel) {
+    console.log(chalk.gray(`  Vision Model: ${options.visionModel}`));
   }
   console.log(chalk.gray(`\nRun "search-cli index" to index this collection.`));
 }

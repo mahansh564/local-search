@@ -5,9 +5,11 @@ import yaml from 'yaml';
 interface Collection {
   name: string;
   path: string;
-  type: 'files' | 'email' | 'apple-notes';
+  type: 'files' | 'email' | 'apple-notes' | 'image';
   glob: string;
+  emailFormat?: 'maildir' | 'mbox' | 'eml';
   notesDb?: string;
+  visionModel?: string;
 }
 
 interface Config {

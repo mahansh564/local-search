@@ -1,4 +1,4 @@
-# search-cli
+# local-search
 
 A terminal CLI search application for local notes, files, and emails with **state-of-the-art RAG** (Retrieval-Augmented Generation) capabilities.
 

@@ -110,8 +110,8 @@ function renderWordmarkLines(width: number, variant: "hero" | "compact"): string
   const localLines = [
     "██╗      ██████╗  ██████╗  █████╗ ██╗     ",
     "██║     ██╔═══██╗██╔════╝ ██╔══██╗██║     ",
-    "██║     ██║   ██║██║  ███╗███████║██║     ",
-    "██║     ██║   ██║██║   ██║██╔══██║██║     ",
+    "██║     ██║   ██║██║     ███████║██║      ",
+    "██║     ██║   ██║██║     ██╔══██║██║      ",
     "███████╗╚██████╔╝╚██████╔╝██║  ██║███████╗",
     "╚══════╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═╝╚══════╝",
   ];
@@ -225,7 +225,7 @@ export async function interactiveCommand() {
 
     const inputMax = boxWidth - 4;
     const slice = sliceForInput(state.input, state.cursor, inputMax);
-    const placeholder = "Ask anything... \"Fix broken tests\"";
+    const placeholder = "Ask anything... \"What do my notes say about this week's TODO list?\"";
     const display = state.input.length > 0 ? slice.text : placeholder;
     const displayText = truncate(display, inputMax);
     const displayColor = state.input.length > 0 ? theme.cornsilk : theme.taupeGrey;
@@ -237,6 +237,7 @@ export async function interactiveCommand() {
       c(" │", theme.pearlAqua);
 
     lines.push(" ".repeat(leftPad) + c(topBorder, theme.pearlAqua));
+    const inputRow = lines.length + 1;
     lines.push(inputLine);
     lines.push(" ".repeat(leftPad) + c(bottomBorder, theme.pearlAqua));
 
@@ -245,7 +246,7 @@ export async function interactiveCommand() {
 
     while (lines.length < height) lines.push(" ".repeat(width));
 
-    const cursorRow = topPad + 4;
+    const cursorRow = inputRow;
     const cursorCol = leftPad + 3 + slice.cursorOffset;
 
     return { screen: lines.join("\n"), cursorRow, cursorCol };
@@ -351,6 +352,7 @@ export async function interactiveCommand() {
     const displayColor = state.input.length > 0 ? theme.cornsilk : theme.taupeGrey;
 
     lines.push(c("┌" + "─".repeat(width - 2) + "┐", theme.pearlAqua));
+    const inputRow = lines.length + 1;
     lines.push(c("│ ", theme.pearlAqua) + c(displayText.padEnd(inputWidth - 2), displayColor) + c(" │", theme.pearlAqua));
     lines.push(c("└" + "─".repeat(width - 2) + "┘", theme.pearlAqua));
 
@@ -359,7 +361,7 @@ export async function interactiveCommand() {
 
     while (lines.length < height) lines.push(" ".repeat(width));
 
-    const cursorRow = height - 2;
+    const cursorRow = inputRow;
     const cursorCol = 3 + slice.cursorOffset;
 
     return { screen: lines.join("\n"), cursorRow, cursorCol };

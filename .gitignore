@@ -8,3 +8,4 @@ node_modules/
 .cursor/
 .sisyphus/
 dist/
+.DS_Store

@@ -13,7 +13,7 @@
 ### Task 1: Add query parser helper tests
 
 **Files:**
-- Create: `/Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/query-parser.test.ts`
+- Create: `/Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/query-parser.test.ts`
 
 **Step 1: Write the failing test**
 
@@ -52,14 +52,14 @@ test('buildSourceFilter builds metadata filter for sources', () => {
 
 Run:
 ```bash
-bun test /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/query-parser.test.ts
+bun test /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/query-parser.test.ts
 ```
 
 Expected: FAIL (`normalizeQueryParseResult` and helpers missing).
 
 **Step 3: Write minimal implementation**
 
-Create `/Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/query-parser.ts` with:
+Create `/Users/anshulmahajan/Desktop/Projects/local-search/src/llm/query-parser.ts` with:
 
 - `normalizeQueryParseResult`
 - `buildBm25Query(original, parsed)`
@@ -70,7 +70,7 @@ Create `/Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/query-parser.ts
 
 Run:
 ```bash
-bun test /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/query-parser.test.ts
+bun test /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/query-parser.test.ts
 ```
 
 Expected: PASS.
@@ -78,8 +78,8 @@ Expected: PASS.
 **Step 5: Commit**
 
 ```bash
-git add /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/query-parser.test.ts \
-  /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/query-parser.ts
+git add /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/query-parser.test.ts \
+  /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/query-parser.ts
 git commit -m "test: add query parser helpers"
 ```
 
@@ -88,12 +88,12 @@ git commit -m "test: add query parser helpers"
 ### Task 2: Add LangChain-based query parsing (Stage 1)
 
 **Files:**
-- Modify: `/Users/anshulmahajan/Desktop/Projects/search-cli/package.json`
-- Modify: `/Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/query-parser.ts`
+- Modify: `/Users/anshulmahajan/Desktop/Projects/local-search/package.json`
+- Modify: `/Users/anshulmahajan/Desktop/Projects/local-search/src/llm/query-parser.ts`
 
 **Step 1: Write the failing test**
 
-Add to `/Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/query-parser.test.ts`:
+Add to `/Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/query-parser.test.ts`:
 
 ```ts
 test('parseQueryWithLLM falls back to empty parse on error', async () => {
@@ -110,7 +110,7 @@ test('parseQueryWithLLM falls back to empty parse on error', async () => {
 
 Run:
 ```bash
-bun test /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/query-parser.test.ts
+bun test /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/query-parser.test.ts
 ```
 
 Expected: FAIL (parseQueryWithLLM missing / doesn’t handle error).
@@ -131,7 +131,7 @@ Expected: FAIL (parseQueryWithLLM missing / doesn’t handle error).
 
 Run:
 ```bash
-bun test /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/query-parser.test.ts
+bun test /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/query-parser.test.ts
 ```
 
 Expected: PASS.
@@ -139,9 +139,9 @@ Expected: PASS.
 **Step 5: Commit**
 
 ```bash
-git add /Users/anshulmahajan/Desktop/Projects/search-cli/package.json \
-  /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/query-parser.ts \
-  /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/query-parser.test.ts
+git add /Users/anshulmahajan/Desktop/Projects/local-search/package.json \
+  /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/query-parser.ts \
+  /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/query-parser.test.ts
 git commit -m "feat: add langchain query parser (stage 1)"
 ```
 
@@ -150,14 +150,14 @@ git commit -m "feat: add langchain query parser (stage 1)"
 ### Task 3: Add source metadata + metadata builder
 
 **Files:**
-- Modify: `/Users/anshulmahajan/Desktop/Projects/search-cli/src/indexers/content-utils.ts`
-- Modify: `/Users/anshulmahajan/Desktop/Projects/search-cli/src/indexers/base.ts`
-- Modify: `/Users/anshulmahajan/Desktop/Projects/search-cli/src/storage/db.ts`
-- Modify: `/Users/anshulmahajan/Desktop/Projects/search-cli/src/storage/__tests__/db-upsert.test.ts`
+- Modify: `/Users/anshulmahajan/Desktop/Projects/local-search/src/indexers/content-utils.ts`
+- Modify: `/Users/anshulmahajan/Desktop/Projects/local-search/src/indexers/base.ts`
+- Modify: `/Users/anshulmahajan/Desktop/Projects/local-search/src/storage/db.ts`
+- Modify: `/Users/anshulmahajan/Desktop/Projects/local-search/src/storage/__tests__/db-upsert.test.ts`
 
 **Step 1: Write the failing test**
 
-Extend `/Users/anshulmahajan/Desktop/Projects/search-cli/src/indexers/__tests__/content-utils.test.ts`:
+Extend `/Users/anshulmahajan/Desktop/Projects/local-search/src/indexers/__tests__/content-utils.test.ts`:
 
 ```ts
 test('buildDocumentMetadata includes source', () => {
@@ -172,7 +172,7 @@ test('buildDocumentMetadata includes source', () => {
 
 Run:
 ```bash
-bun test /Users/anshulmahajan/Desktop/Projects/search-cli/src/indexers/__tests__/content-utils.test.ts
+bun test /Users/anshulmahajan/Desktop/Projects/local-search/src/indexers/__tests__/content-utils.test.ts
 ```
 
 Expected: FAIL (buildDocumentMetadata missing).
@@ -187,8 +187,8 @@ Expected: FAIL (buildDocumentMetadata missing).
 
 Run:
 ```bash
-bun test /Users/anshulmahajan/Desktop/Projects/search-cli/src/indexers/__tests__/content-utils.test.ts \
-  /Users/anshulmahajan/Desktop/Projects/search-cli/src/storage/__tests__/db-upsert.test.ts
+bun test /Users/anshulmahajan/Desktop/Projects/local-search/src/indexers/__tests__/content-utils.test.ts \
+  /Users/anshulmahajan/Desktop/Projects/local-search/src/storage/__tests__/db-upsert.test.ts
 ```
 
 Expected: PASS.
@@ -196,11 +196,11 @@ Expected: PASS.
 **Step 5: Commit**
 
 ```bash
-git add /Users/anshulmahajan/Desktop/Projects/search-cli/src/indexers/content-utils.ts \
-  /Users/anshulmahajan/Desktop/Projects/search-cli/src/indexers/base.ts \
-  /Users/anshulmahajan/Desktop/Projects/search-cli/src/storage/db.ts \
-  /Users/anshulmahajan/Desktop/Projects/search-cli/src/indexers/__tests__/content-utils.test.ts \
-  /Users/anshulmahajan/Desktop/Projects/search-cli/src/storage/__tests__/db-upsert.test.ts
+git add /Users/anshulmahajan/Desktop/Projects/local-search/src/indexers/content-utils.ts \
+  /Users/anshulmahajan/Desktop/Projects/local-search/src/indexers/base.ts \
+  /Users/anshulmahajan/Desktop/Projects/local-search/src/storage/db.ts \
+  /Users/anshulmahajan/Desktop/Projects/local-search/src/indexers/__tests__/content-utils.test.ts \
+  /Users/anshulmahajan/Desktop/Projects/local-search/src/storage/__tests__/db-upsert.test.ts
 git commit -m "feat: add source metadata and incremental updates"
 ```
 
@@ -209,13 +209,13 @@ git commit -m "feat: add source metadata and incremental updates"
 ### Task 4: Apply query parsing + source filters in pipeline
 
 **Files:**
-- Modify: `/Users/anshulmahajan/Desktop/Projects/search-cli/src/search/pipeline.ts`
-- Modify: `/Users/anshulmahajan/Desktop/Projects/search-cli/src/cli/commands/query.ts`
-- Modify: `/Users/anshulmahajan/Desktop/Projects/search-cli/src/cli/commands/ask.ts`
+- Modify: `/Users/anshulmahajan/Desktop/Projects/local-search/src/search/pipeline.ts`
+- Modify: `/Users/anshulmahajan/Desktop/Projects/local-search/src/cli/commands/query.ts`
+- Modify: `/Users/anshulmahajan/Desktop/Projects/local-search/src/cli/commands/ask.ts`
 
 **Step 1: Write the failing test**
 
-Add to `/Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/query-parser.test.ts`:
+Add to `/Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/query-parser.test.ts`:
 
 ```ts
 test('mergeFilters combines source filter with existing filter', () => {
@@ -230,7 +230,7 @@ test('mergeFilters combines source filter with existing filter', () => {
 
 Run:
 ```bash
-bun test /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/query-parser.test.ts
+bun test /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/query-parser.test.ts
 ```
 
 Expected: FAIL (mergeFilters or buildSourceFilter missing).
@@ -246,7 +246,7 @@ Expected: FAIL (mergeFilters or buildSourceFilter missing).
 
 Run:
 ```bash
-bun test /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/query-parser.test.ts
+bun test /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/query-parser.test.ts
 ```
 
 Expected: PASS.
@@ -254,11 +254,11 @@ Expected: PASS.
 **Step 5: Commit**
 
 ```bash
-git add /Users/anshulmahajan/Desktop/Projects/search-cli/src/search/pipeline.ts \
-  /Users/anshulmahajan/Desktop/Projects/search-cli/src/cli/commands/query.ts \
-  /Users/anshulmahajan/Desktop/Projects/search-cli/src/cli/commands/ask.ts \
-  /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/query-parser.ts \
-  /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/query-parser.test.ts
+git add /Users/anshulmahajan/Desktop/Projects/local-search/src/search/pipeline.ts \
+  /Users/anshulmahajan/Desktop/Projects/local-search/src/cli/commands/query.ts \
+  /Users/anshulmahajan/Desktop/Projects/local-search/src/cli/commands/ask.ts \
+  /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/query-parser.ts \
+  /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/query-parser.test.ts
 git commit -m "feat: apply query parsing + source filtering"
 ```
 
@@ -269,9 +269,9 @@ git commit -m "feat: apply query parsing + source filtering"
 **Step 1: Run targeted tests**
 
 ```bash
-bun test /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/query-parser.test.ts \
-  /Users/anshulmahajan/Desktop/Projects/search-cli/src/indexers/__tests__/content-utils.test.ts \
-  /Users/anshulmahajan/Desktop/Projects/search-cli/src/storage/__tests__/db-upsert.test.ts
+bun test /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/query-parser.test.ts \
+  /Users/anshulmahajan/Desktop/Projects/local-search/src/indexers/__tests__/content-utils.test.ts \
+  /Users/anshulmahajan/Desktop/Projects/local-search/src/storage/__tests__/db-upsert.test.ts
 ```
 
 Expected: PASS.
@@ -279,7 +279,7 @@ Expected: PASS.
 **Step 2: Manual smoke check**
 
 ```bash
-bun run /Users/anshulmahajan/Desktop/Projects/search-cli/src/index.ts query "what do I say about realtime in apple notes" --limit 10 --full --debug
+bun run /Users/anshulmahajan/Desktop/Projects/local-search/src/index.ts query "what do I say about realtime in apple notes" --limit 10 --full --debug
 ```
 
 Expected: results only from Apple Notes paths.
@@ -291,7 +291,7 @@ No new code changes expected.
 ---
 
 **Plan complete.** Saved to:
-`/Users/anshulmahajan/Desktop/Projects/search-cli/docs/plans/2026-02-23-query-parse-and-source-filter.md`
+`/Users/anshulmahajan/Desktop/Projects/local-search/docs/plans/2026-02-23-query-parse-and-source-filter.md`
 
 Two execution options:
 

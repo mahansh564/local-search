@@ -13,8 +13,8 @@
 ### Task 1: Add LangChain message conversion helper
 
 **Files:**
-- Modify: `/Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/prompts.ts`
-- Create: `/Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/prompts-langchain.test.ts`
+- Modify: `/Users/anshulmahajan/Desktop/Projects/local-search/src/llm/prompts.ts`
+- Create: `/Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/prompts-langchain.test.ts`
 
 **Step 1: Write the failing test**
 
@@ -36,7 +36,7 @@ test('toLangChainMessages converts prompt messages to LangChain messages', () =>
 
 Run:
 ```bash
-bun test /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/prompts-langchain.test.ts
+bun test /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/prompts-langchain.test.ts
 ```
 
 Expected: FAIL (`toLangChainMessages` missing).
@@ -50,7 +50,7 @@ Expected: FAIL (`toLangChainMessages` missing).
 
 Run:
 ```bash
-bun test /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/prompts-langchain.test.ts
+bun test /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/prompts-langchain.test.ts
 ```
 
 Expected: PASS.
@@ -58,8 +58,8 @@ Expected: PASS.
 **Step 5: Commit**
 
 ```bash
-git add /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/prompts.ts \
-  /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/prompts-langchain.test.ts
+git add /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/prompts.ts \
+  /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/prompts-langchain.test.ts
 git commit -m "test: add langchain prompt conversion"
 ```
 
@@ -68,8 +68,8 @@ git commit -m "test: add langchain prompt conversion"
 ### Task 2: Add LangChain chat helper for ask
 
 **Files:**
-- Create: `/Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/langchain-chat.ts`
-- Create: `/Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/langchain-chat.test.ts`
+- Create: `/Users/anshulmahajan/Desktop/Projects/local-search/src/llm/langchain-chat.ts`
+- Create: `/Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/langchain-chat.test.ts`
 
 **Step 1: Write the failing test**
 
@@ -92,7 +92,7 @@ test('streamResponseText concatenates stream chunks', async () => {
 
 Run:
 ```bash
-bun test /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/langchain-chat.test.ts
+bun test /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/langchain-chat.test.ts
 ```
 
 Expected: FAIL (`streamResponseText` missing).
@@ -107,7 +107,7 @@ Expected: FAIL (`streamResponseText` missing).
 
 Run:
 ```bash
-bun test /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/langchain-chat.test.ts
+bun test /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/langchain-chat.test.ts
 ```
 
 Expected: PASS.
@@ -115,8 +115,8 @@ Expected: PASS.
 **Step 5: Commit**
 
 ```bash
-git add /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/langchain-chat.ts \
-  /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/langchain-chat.test.ts
+git add /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/langchain-chat.ts \
+  /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/langchain-chat.test.ts
 git commit -m "test: add langchain chat helper"
 ```
 
@@ -125,11 +125,11 @@ git commit -m "test: add langchain chat helper"
 ### Task 3: Switch ask command to LangChain
 
 **Files:**
-- Modify: `/Users/anshulmahajan/Desktop/Projects/search-cli/src/cli/commands/ask.ts`
+- Modify: `/Users/anshulmahajan/Desktop/Projects/local-search/src/cli/commands/ask.ts`
 
 **Step 1: Write the failing test**
 
-Add to `/Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/langchain-chat.test.ts`:
+Add to `/Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/langchain-chat.test.ts`:
 
 ```ts
 import { toLangChainMessages } from '../prompts';
@@ -147,7 +147,7 @@ test('ask uses langchain messages for chat', async () => {
 
 Run:
 ```bash
-bun test /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/langchain-chat.test.ts
+bun test /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/langchain-chat.test.ts
 ```
 
 Expected: FAIL if imports missing / messages not exposed.
@@ -165,8 +165,8 @@ Expected: FAIL if imports missing / messages not exposed.
 
 Run:
 ```bash
-bun test /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/langchain-chat.test.ts \
-  /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/prompts-langchain.test.ts
+bun test /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/langchain-chat.test.ts \
+  /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/prompts-langchain.test.ts
 ```
 
 Expected: PASS.
@@ -174,11 +174,11 @@ Expected: PASS.
 **Step 5: Commit**
 
 ```bash
-git add /Users/anshulmahajan/Desktop/Projects/search-cli/src/cli/commands/ask.ts \
-  /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/langchain-chat.ts \
-  /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/prompts.ts \
-  /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/langchain-chat.test.ts \
-  /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/prompts-langchain.test.ts
+git add /Users/anshulmahajan/Desktop/Projects/local-search/src/cli/commands/ask.ts \
+  /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/langchain-chat.ts \
+  /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/prompts.ts \
+  /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/langchain-chat.test.ts \
+  /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/prompts-langchain.test.ts
 git commit -m "feat: move ask generation to langchain"
 ```
 
@@ -189,8 +189,8 @@ git commit -m "feat: move ask generation to langchain"
 **Step 1: Run targeted tests**
 
 ```bash
-bun test /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/prompts-langchain.test.ts \
-  /Users/anshulmahajan/Desktop/Projects/search-cli/src/llm/__tests__/langchain-chat.test.ts
+bun test /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/prompts-langchain.test.ts \
+  /Users/anshulmahajan/Desktop/Projects/local-search/src/llm/__tests__/langchain-chat.test.ts
 ```
 
 Expected: PASS.
@@ -198,7 +198,7 @@ Expected: PASS.
 **Step 2: Manual smoke check**
 
 ```bash
-bun run /Users/anshulmahajan/Desktop/Projects/search-cli/src/index.ts ask "What is in my TODO note about realtime?" --no-stream
+bun run /Users/anshulmahajan/Desktop/Projects/local-search/src/index.ts ask "What is in my TODO note about realtime?" --no-stream
 ```
 
 Expected: Answer printed, no errors.

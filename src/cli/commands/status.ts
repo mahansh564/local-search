@@ -1,12 +1,11 @@
 import chalk from 'chalk';
 import { DatabaseManager } from '../../storage/db.js';
 import { ConfigManager } from '../../utils/config.js';
-import path from 'path';
-import os from 'os';
+import { CLI_NAME, donutConfigDir, donutDatabasePath } from '../../utils/app-paths.js';
 
 export async function statusCommand() {
-  const configDir = path.join(os.homedir(), '.search-cli');
-  const dbPath = path.join(configDir, 'index.sqlite');
+  const configDir = donutConfigDir();
+  const dbPath = donutDatabasePath();
   
   console.log(chalk.blue('📊 Search Index Status\n'));
   
@@ -32,6 +31,6 @@ export async function statusCommand() {
     console.log(`  Database size: ${stats.dbSize}`);
     console.log(`  Last indexed: ${stats.lastIndexed || 'Never'}`);
   } catch (error) {
-    console.log(chalk.yellow("Database not initialized. Run 'search-cli init' first."));
+    console.log(chalk.yellow(`Database not initialized. Run '${CLI_NAME} init' first.`));
   }
 }

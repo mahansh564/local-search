@@ -1,17 +1,16 @@
 import chalk from 'chalk';
 import { ConfigManager } from '../../utils/config.js';
-import path from 'path';
-import os from 'os';
+import { CLI_NAME, donutConfigDir } from '../../utils/app-paths.js';
 
 export async function listCommand() {
-  const configDir = path.join(os.homedir(), '.search-cli');
+  const configDir = donutConfigDir();
   const configManager = new ConfigManager(configDir);
   
   const collections = await configManager.getCollections();
   
   if (collections.length === 0) {
     console.log(chalk.yellow('No collections configured.'));
-    console.log(chalk.gray('Add a collection with: search-cli add <path>'));
+    console.log(chalk.gray(`Add a collection with: ${CLI_NAME} add <path>`));
     return;
   }
   

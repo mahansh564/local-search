@@ -18,8 +18,8 @@ import { askCommand } from './cli/commands/ask.js';
 const program = new Command();
 
 program
-  .name('search-cli')
-  .description('Terminal CLI search application for local notes, files, emails, and Apple Notes')
+  .name('donut')
+  .description('Donut — terminal search for notes, files, emails, and Apple Notes (hybrid RAG)')
   .version('0.1.0');
 
 program

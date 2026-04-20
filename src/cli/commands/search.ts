@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import { DatabaseManager } from '../../storage/db.js';
+import { CLI_NAME, donutDatabasePath } from '../../utils/app-paths.js';
 import path from 'path';
-import os from 'os';
 
 interface SearchOptions {
   limit: string;
@@ -13,7 +13,7 @@ interface SearchOptions {
 }
 
 export async function searchCommand(query: string, options: SearchOptions) {
-  const dbPath = path.join(os.homedir(), '.search-cli', 'index.sqlite');
+  const dbPath = donutDatabasePath();
   const db = new DatabaseManager(dbPath);
   
   console.log(chalk.blue(`🔍 Searching: "${query}"`));
@@ -47,7 +47,7 @@ export async function searchCommand(query: string, options: SearchOptions) {
     results = results as any[];
 
     if (results.length === 0) {
-      console.log(chalk.yellow(`No results for '${query}'. Try different keywords or run 'search-cli index' to rebuild.`));
+      console.log(chalk.yellow(`No results for '${query}'. Try different keywords or run '${CLI_NAME} index' to rebuild.`));
       return;
     }
 

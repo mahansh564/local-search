@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "search-cli",
+      "name": "donut",
       "dependencies": {
         "@langchain/core": "^0.2.33",
         "@langchain/ollama": "^0.1.5",

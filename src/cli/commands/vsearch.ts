@@ -1,15 +1,15 @@
 import chalk from 'chalk';
 import { Database } from 'bun:sqlite';
 import { VectorSearch } from '../../search/vector-new.js';
+import { CLI_NAME, donutDatabasePath } from '../../utils/app-paths.js';
 import path from 'path';
-import os from 'os';
 
 interface VSearchOptions {
   limit: string;
 }
 
 export async function vsearchCommand(query: string, options: VSearchOptions) {
-  const dbPath = path.join(os.homedir(), '.search-cli', 'index.sqlite');
+  const dbPath = donutDatabasePath();
   const db = new Database(dbPath);
   const vectorSearch = new VectorSearch(db);
 
@@ -25,7 +25,7 @@ export async function vsearchCommand(query: string, options: VSearchOptions) {
     const results = await vectorSearch.search(query, parseInt(options.limit));
 
     if (results.length === 0) {
-      console.log(chalk.yellow(`No results for '${query}'. Try different keywords or run 'search-cli index' to rebuild.`));
+      console.log(chalk.yellow(`No results for '${query}'. Try different keywords or run '${CLI_NAME} index' to rebuild.`));
       return;
     }
 

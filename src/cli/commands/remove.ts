@@ -1,10 +1,9 @@
 import chalk from 'chalk';
 import { ConfigManager } from '../../utils/config.js';
-import path from 'path';
-import os from 'os';
+import { donutConfigDir } from '../../utils/app-paths.js';
 
 export async function removeCommand(name: string) {
-  const configDir = path.join(os.homedir(), '.search-cli');
+  const configDir = donutConfigDir();
   const configManager = new ConfigManager(configDir);
   
   console.log(chalk.blue(`🗑️ Removing collection: ${name}`));

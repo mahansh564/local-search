@@ -1,3 +1,3 @@
 # Project Notes
 
-Notes about the search-cli project architecture.
+Notes about the Donut project architecture.

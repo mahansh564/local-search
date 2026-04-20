@@ -11,7 +11,7 @@ function sha256(content: string): string {
 }
 
 test('insertDocument upserts by path and updates FTS', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'search-cli-db-'));
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'donut-db-'));
   const dbPath = path.join(tmpDir, 'index.sqlite');
 
   const dbManager = new DatabaseManager(dbPath);
@@ -57,7 +57,7 @@ test('insertDocument upserts by path and updates FTS', () => {
 });
 
 test('insertDocument skips update when hash unchanged', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'search-cli-db-'));
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'donut-db-'));
   const dbPath = path.join(tmpDir, 'index.sqlite');
 
   const dbManager = new DatabaseManager(dbPath);

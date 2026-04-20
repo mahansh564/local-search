@@ -4,8 +4,8 @@ import { RAGPipeline } from '../../search/pipeline.js';
 import { OllamaClient } from '../../llm/ollama.js';
 import { buildMessages, toLangChainMessages } from '../../llm/prompts.js';
 import { createChatModel, streamChat } from '../../llm/langchain-chat.js';
+import { donutDatabasePath } from '../../utils/app-paths.js';
 import path from 'path';
-import os from 'os';
 
 interface AskOptions {
   limit: string;
@@ -32,7 +32,7 @@ function extractTextContent(rawContent: string): string {
 }
 
 export async function askCommand(question: string, options: AskOptions) {
-  const dbPath = path.join(os.homedir(), '.search-cli', 'index.sqlite');
+  const dbPath = donutDatabasePath();
   
   const db = new Database(dbPath);
   const pipeline = new RAGPipeline(db, {

@@ -1,12 +1,12 @@
 import chalk from 'chalk';
 import { ConfigManager } from '../../utils/config.js';
+import { donutConfigDir } from '../../utils/app-paths.js';
 import chokidar from 'chokidar';
 import { spawn } from 'child_process';
 import path from 'path';
-import os from 'os';
 
 export async function watchCommand() {
-  const configDir = path.join(os.homedir(), '.search-cli');
+  const configDir = donutConfigDir();
   const configManager = new ConfigManager(configDir);
   
   const collections = await configManager.getCollections();

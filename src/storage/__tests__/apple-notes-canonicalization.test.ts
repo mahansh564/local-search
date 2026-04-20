@@ -11,7 +11,7 @@ function sha256(content: string): string {
 }
 
 test('canonicalizeAppleNotesPaths removes numeric paths when coredata exists', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'search-cli-db-'));
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'donut-db-'));
   const dbPath = path.join(tmpDir, 'index.sqlite');
 
   const dbManager = new DatabaseManager(dbPath);

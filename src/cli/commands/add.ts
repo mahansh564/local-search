@@ -2,8 +2,8 @@ import chalk from 'chalk';
 import { ConfigManager } from '../../utils/config.js';
 import { DatabaseManager } from '../../storage/db.js';
 import { AppleNotesIndexer } from '../../indexers/apple-notes.js';
+import { CLI_NAME, donutConfigDir } from '../../utils/app-paths.js';
 import path from 'path';
-import os from 'os';
 
 interface AddOptions {
   name?: string;
@@ -14,7 +14,7 @@ interface AddOptions {
 }
 
 export async function addCommand(collectionPath: string, options: AddOptions) {
-  const configDir = path.join(os.homedir(), '.search-cli');
+  const configDir = donutConfigDir();
   const configManager = new ConfigManager(configDir);
   
   // Resolve full path
@@ -65,5 +65,5 @@ export async function addCommand(collectionPath: string, options: AddOptions) {
   if (options.type === 'image' && options.visionModel) {
     console.log(chalk.gray(`  Vision Model: ${options.visionModel}`));
   }
-  console.log(chalk.gray(`\nRun "search-cli index" to index this collection.`));
+  console.log(chalk.gray(`\nRun "${CLI_NAME} index" to index this collection.`));
 }

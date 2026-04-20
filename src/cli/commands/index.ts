@@ -2,15 +2,14 @@ import chalk from 'chalk';
 import { ConfigManager } from '../../utils/config.js';
 import { Indexer } from '../../indexers/base.js';
 import { DatabaseManager } from '../../storage/db.js';
-import path from 'path';
-import os from 'os';
+import { CLI_NAME, donutConfigDir, donutDatabasePath } from '../../utils/app-paths.js';
 
 interface IndexOptions {
   collection?: string;
 }
 
 export async function indexCommand(options: IndexOptions) {
-  const configDir = path.join(os.homedir(), '.search-cli');
+  const configDir = donutConfigDir();
   const configManager = new ConfigManager(configDir);
   
   console.log(chalk.blue('📦 Building search index...\n'));
@@ -21,13 +20,13 @@ export async function indexCommand(options: IndexOptions) {
     : collections;
   
   if (targetCollections.length === 0) {
-    console.log(chalk.yellow(options.collection 
-      ? `Collection '${options.collection}' not found. Run 'search-cli list' to see available collections.` 
-      : 'No collections configured. Run \'search-cli list\' to see available collections.'));
+    console.log(chalk.yellow(options.collection
+      ? `Collection '${options.collection}' not found. Run '${CLI_NAME} list' to see available collections.`
+      : `No collections configured. Run '${CLI_NAME} list' to see available collections.`));
     return;
   }
   
-  const dbPath = path.join(configDir, 'index.sqlite');
+  const dbPath = donutDatabasePath();
   const dbManager = new DatabaseManager(dbPath);
   dbManager.init();
   const removed = dbManager.dedupeDocumentsByPath();

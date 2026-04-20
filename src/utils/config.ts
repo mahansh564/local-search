@@ -23,7 +23,7 @@ interface Config {
 }
 
 const DEFAULT_CONFIG: Config = {
-  database_path: '~/.search-cli/index.sqlite',
+  database_path: '~/.donut/index.sqlite',
   collections: [],
   search: {
     default_limit: 10,

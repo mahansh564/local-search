@@ -1,9 +1,9 @@
 import chalk from 'chalk';
 import { Database } from 'bun:sqlite';
 import { RAGPipeline } from '../../search/pipeline.js';
+import { CLI_NAME, donutDatabasePath } from '../../utils/app-paths.js';
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
 
 interface ExportOptions {
   format: string;
@@ -11,7 +11,7 @@ interface ExportOptions {
 }
 
 export async function exportCommand(query: string, options: ExportOptions) {
-  const dbPath = path.join(os.homedir(), '.search-cli', 'index.sqlite');
+  const dbPath = donutDatabasePath();
   const db = new Database(dbPath);
   const pipeline = new RAGPipeline(db);
 
@@ -23,7 +23,7 @@ export async function exportCommand(query: string, options: ExportOptions) {
     const results = await pipeline.search(query, { limit: 100 });
 
     if (results.length === 0) {
-      console.log(chalk.yellow(`No results for '${query}'. Try different keywords or run 'search-cli index' to rebuild.`));
+      console.log(chalk.yellow(`No results for '${query}'. Try different keywords or run '${CLI_NAME} index' to rebuild.`));
       return;
     }
 

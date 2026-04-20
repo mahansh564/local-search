@@ -1,11 +1,11 @@
 {
-  "name": "search-cli",
+  "name": "donut",
   "version": "0.1.0",
-  "description": "Terminal CLI search application for local notes, files, and emails with SOTA RAG",
+  "description": "Donut — terminal CLI search for notes, files, and emails with hybrid RAG (BM25 + vectors + rerank)",
   "module": "src/index.ts",
   "type": "module",
   "bin": {
-    "search-cli": "./dist/index.js"
+    "donut": "./dist/index.js"
   },
   "scripts": {
     "dev": "bun --watch src/index.ts",

@@ -1,8 +1,8 @@
 import chalk from 'chalk';
 import { Database } from 'bun:sqlite';
 import { RAGPipeline } from '../../search/pipeline.js';
+import { donutDatabasePath } from '../../utils/app-paths.js';
 import path from 'path';
-import os from 'os';
 
 export interface QueryOptions {
   limit: string;
@@ -71,7 +71,7 @@ export function formatResultOutput(
 }
 
 export async function queryCommand(query: string, options: QueryOptions) {
-  const dbPath = path.join(os.homedir(), '.search-cli', 'index.sqlite');
+  const dbPath = donutDatabasePath();
   const db = new Database(dbPath);
   const pipeline = new RAGPipeline(db, {
     enableReranking: options.rerank !== 'false',

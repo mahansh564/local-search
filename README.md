@@ -1,12 +1,14 @@
-# local-search
+# Donut
 
 A terminal CLI search application for local notes, files, and emails with state-of-the-art RAG (Retrieval-Augmented Generation) capabilities.
 
-![Landing Screen](assets/local-search.png)
+![Donut landing screen](assets/donut.png)
 
 ## Overview
 
-`local-search` combines **hybrid search** (BM25 + vector embeddings), **cross-encoder reranking**, and **local LLM integration** to provide intelligent search over your personal data—all running entirely offline on your machine.
+**Donut** combines **hybrid search** (BM25 + vector embeddings), **cross-encoder reranking**, and **local LLM integration** to provide intelligent search over your personal data—all running entirely offline on your machine.
+
+Config and the SQLite index live under `~/.donut/`. If you are upgrading from an older install, see [Migrating](#migrating).
 
 **Key capabilities:**
 
@@ -17,6 +19,8 @@ A terminal CLI search application for local notes, files, and emails with state-
 - 🔒 100% offline, no API keys required
 
 ## Quick Start
+
+Run `bun run build` and use the `donut` binary from `dist/`, or invoke the CLI with Bun as shown below. Packaged installs expose the command as **`donut`**.
 
 ```bash
 # Initialize the database
@@ -40,6 +44,16 @@ bun run src/index.ts ask "what are the main topics?"
 # Interactive mode
 bun run src/index.ts interactive
 ```
+
+## Migrating
+
+Earlier versions used **Local Search** / `search-cli` with data in `~/.search-cli/`. To keep your existing config and database:
+
+```bash
+mv ~/.search-cli ~/.donut
+```
+
+Then run `donut` (or `bun run src/index.ts …`) instead of `search-cli`.
 
 ## Search Architecture
 

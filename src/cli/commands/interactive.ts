@@ -3,8 +3,8 @@ import { Database } from "bun:sqlite";
 import { RAGPipeline } from "../../search/pipeline.js";
 import { OllamaClient } from "../../llm/ollama.js";
 import { buildMessages, type DocumentContext } from "../../llm/prompts.js";
-import path from "path";
-import os from "os";
+import { renderTorusFrame } from "./torus.js";
+import { CLI_NAME, donutDatabasePath } from "../../utils/app-paths.js";
 
 const theme = {
   white: "#fcfcfc",
@@ -99,40 +99,25 @@ function sliceForInput(value: string, cursor: number, max: number): { text: stri
   return { text: value.slice(start, end), cursorOffset: cursor - start };
 }
 
-function renderWordmarkLines(width: number, variant: "hero" | "compact"): string[] {
+function renderDonutLogo(width: number, variant: "hero" | "compact"): string[] {
   if (variant === "compact") {
-    const left = "local";
-    const right = "search";
-    const mark = c(left, theme.taupeGrey) + " " + c(right, theme.cornsilk);
+    const mark = c("do", theme.taupeGrey) + c("nut", theme.cornsilk);
     return [padCentered(mark, width)];
   }
 
-  const localLines = [
-    "██╗      ██████╗  ██████╗  █████╗ ██╗     ",
-    "██║     ██╔═══██╗██╔════╝ ██╔══██╗██║     ",
-    "██║     ██║   ██║██║     ███████║██║      ",
-    "██║     ██║   ██║██║     ██╔══██║██║      ",
-    "███████╗╚██████╔╝╚██████╔╝██║  ██║███████╗",
-    "╚══════╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═╝╚══════╝",
-  ];
-
-  const searchLines = [
-    "███████╗███████╗ █████╗ ██████╗  ██████╗██╗  ██╗",
-    "██╔════╝██╔════╝██╔══██╗██╔══██╗██╔════╝██║  ██║",
-    "███████╗█████╗  ███████║██████╔╝██║     ███████║",
-    "╚════██║██╔══╝  ██╔══██║██╔══██╗██║     ██╔══██║",
-    "███████║███████╗██║  ██║██║  ██║╚██████╗██║  ██║",
-    "╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝",
+  const donutLines = [
+    "██████╗  ██████╗ ███╗   ██╗██╗   ██╗████████╗",
+    "██╔══██╗██╔═══██╗████╗  ██║██║   ██║╚══██╔══╝",
+    "██║  ██║██║   ██║██╔██╗ ██║██║   ██║   ██║   ",
+    "██║  ██║██║   ██║██║╚██╗██║██║   ██║   ██║   ",
+    "██████╔╝╚██████╔╝██║ ╚████║╚██████╔╝   ██║   ",
+    "╚═════╝  ╚═════╝ ╚═╝  ╚═══╝ ╚═════╝    ╚═╝   ",
   ];
 
   const lines: string[] = [];
-  localLines.forEach((line, i) => {
-    const color = i === 0 || i === localLines.length - 1 ? theme.bubblegumPink : theme.taupeGrey;
-    lines.push(c(padCentered(line, width), color));
-  });
-  lines.push(" ".repeat(width));
-  searchLines.forEach((line, i) => {
-    const color = i === 0 || i === searchLines.length - 1 ? theme.pearlAqua : theme.cornsilk;
+  donutLines.forEach((line, i) => {
+    const color =
+      i === 0 || i === donutLines.length - 1 ? theme.bubblegumPink : i <= 2 ? theme.taupeGrey : theme.pearlAqua;
     lines.push(c(padCentered(line, width), color));
   });
 
@@ -171,11 +156,11 @@ interface RenderOutput {
 }
 
 export async function interactiveCommand() {
-  const dbPath = path.join(os.homedir(), ".search-cli", "index.sqlite");
+  const dbPath = donutDatabasePath();
 
   const fs = await import("fs");
   if (!fs.existsSync(dbPath)) {
-    console.log("Database not initialized. Run 'search-cli init' first.");
+    console.log(`Database not initialized. Run '${CLI_NAME} init' first.`);
     process.exit(1);
   }
 
@@ -199,6 +184,9 @@ export async function interactiveCommand() {
     currentSources: [] as DocumentContext[],
   };
 
+  let frame = 0;
+  let animTimer: ReturnType<typeof setInterval> | null = null;
+
   const modelName = process.env.OLLAMA_MODEL || "llama3.1";
 
   const w = () => process.stdout.columns || 80;
@@ -209,12 +197,18 @@ export async function interactiveCommand() {
     const height = h();
     const lines: string[] = [];
 
-    const wordmarkLines = renderWordmarkLines(width, "hero");
-    const reserved = wordmarkLines.length + 6;
-    const topPad = Math.max(1, Math.floor((height - reserved) / 3));
+    const logoLines = renderDonutLogo(width, "hero");
+    const tailAfterTorus = 1 + logoLines.length + 1 + 4;
+    const breathing = 6;
+    const heroHeight = Math.min(14, Math.max(5, height - tailAfterTorus - breathing));
+    const torusLines = renderTorusFrame(width, heroHeight, frame);
+    const contentH = torusLines.length + tailAfterTorus;
+    const topPad = Math.max(0, Math.floor((height - contentH) / 2));
     for (let i = 0; i < topPad; i++) lines.push(" ".repeat(width));
 
-    lines.push(...wordmarkLines);
+    lines.push(...torusLines);
+    lines.push(" ".repeat(width));
+    lines.push(...logoLines);
     lines.push(" ".repeat(width));
 
     const boxWidth = Math.min(80, Math.max(40, width - 10));
@@ -241,7 +235,7 @@ export async function interactiveCommand() {
     lines.push(inputLine);
     lines.push(" ".repeat(leftPad) + c(bottomBorder, theme.pearlAqua));
 
-    const meta = `Ollama ${modelName}  •  Local Search  •  tab agents  ctrl+p commands`;
+    const meta = `Ollama ${modelName}  •  Donut  •  tab agents  ctrl+p commands`;
     lines.push(" ".repeat(leftPad) + c(truncate(meta, boxWidth), theme.taupeGrey));
 
     while (lines.length < height) lines.push(" ".repeat(width));
@@ -306,7 +300,7 @@ export async function interactiveCommand() {
     const height = h();
     const lines: string[] = [];
 
-    lines.push(...renderWordmarkLines(width, "compact"));
+    lines.push(...renderDonutLogo(width, "compact"));
     lines.push(c("─".repeat(width), theme.border));
 
     const rightWidth = Math.max(26, Math.floor(width * 0.28));
@@ -367,14 +361,30 @@ export async function interactiveCommand() {
     return { screen: lines.join("\n"), cursorRow, cursorCol };
   };
 
-  const render = () => {
+  function render() {
     const output = state.mode === "stage1" ? renderStage1() : renderStage2();
     process.stdout.write(ESC.hideCursor);
     process.stdout.write(ESC.clear);
     process.stdout.write(output.screen);
     process.stdout.write(`\x1b[${output.cursorRow};${output.cursorCol}H`);
     process.stdout.write(ESC.showCursor);
-  };
+  }
+
+  function stopAnimation() {
+    if (animTimer) {
+      clearInterval(animTimer);
+      animTimer = null;
+    }
+  }
+
+  function startAnimation() {
+    if (animTimer) return;
+    animTimer = setInterval(() => {
+      if (state.mode !== "stage1" || state.isBusy) return;
+      frame++;
+      render();
+    }, 42);
+  }
 
   const submit = async (input: string) => {
     const trimmed = input.trim();
@@ -384,6 +394,7 @@ export async function interactiveCommand() {
     state.cursor = 0;
 
     if (state.mode === "stage1") state.mode = "stage2";
+    stopAnimation();
 
     const entry: ConversationEntry = {
       query: trimmed,
@@ -454,6 +465,7 @@ export async function interactiveCommand() {
   };
 
   const cleanup = () => {
+    stopAnimation();
     process.stdout.write(ESC.showCursor);
     if (process.stdin.isTTY) process.stdin.setRawMode(false);
     process.stdin.pause();
@@ -544,5 +556,6 @@ export async function interactiveCommand() {
 
   process.stdin.on("data", onKey);
 
+  startAnimation();
   render();
 }
